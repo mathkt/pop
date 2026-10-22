@@ -142,7 +142,7 @@
                     </button>
                 </div>
                 <div id="rows-chips" class="flex flex-wrap items-center gap-2 mt-3 min-h-[2rem]"></div>
-                <p class="text-xs text-slate-400 mt-1.5">* 숫자를 띄어쓰기로 구분해 입력하면 바로 적용됩니다(줄 2개 이상, 한 줄 최대 20개). [랜덤]은 줄 2~5개, 각 줄 2~8개. 온라인 대전은 방장 설정 적용.</p>
+                <p class="text-xs text-slate-400 mt-1.5">* 숫자를 띄어쓰기로 구분해 입력하면 바로 적용됩니다(줄 2~7개, 한 줄 최대 20개). [랜덤]은 줄 2~5개, 각 줄 2~8개. 온라인 대전은 방장 설정 적용.</p>
                 <p id="rows-feedback" class="text-xs text-rose-600 font-semibold mt-1 h-4"></p>
             </div>
 
@@ -580,7 +580,8 @@
             { unpopped: 'bg-emerald-400 border-emerald-500', text: 'text-emerald-500' },
             { unpopped: 'bg-sky-400 border-sky-500', text: 'text-sky-500' },
             { unpopped: 'bg-purple-400 border-purple-500', text: 'text-purple-500' },
-            { unpopped: 'bg-indigo-400 border-indigo-500', text: 'text-indigo-500' }
+            { unpopped: 'bg-indigo-400 border-indigo-500', text: 'text-indigo-500' },
+            { unpopped: 'bg-teal-400 border-teal-500', text: 'text-teal-500' }
         ];
 
         let gameMode = 'ai'; // 'ai', '2p', 'online'
@@ -847,13 +848,15 @@
         function parseRowsText(text) {
             const tokens = String(text).split(/[\s,]+/).filter(t => t.length > 0);
             const rows = [], clipped = [];
+            let tooManyRows = false;
             tokens.forEach(t => {
                 const n = parseInt(t);
                 if (isNaN(n) || n <= 0) return;
+                if (rows.length >= MAX_ROWS) { tooManyRows = true; return; }
                 if (n > MAX_PER_ROW) clipped.push(rows.length);
                 rows.push(Math.min(n, MAX_PER_ROW));
             });
-            return { rows, clipped };
+            return { rows, clipped, tooManyRows };
         }
 
         // 입력한 숫자를 줄별 칩으로 표시
@@ -874,7 +877,8 @@
             const parsed = parseRowsText(document.getElementById(inputId).value);
             renderRowChips(chipsId, parsed);
             const fb = document.getElementById(applyToGame ? 'rows-feedback' : 'rematch-rows-error');
-            if (parsed.clipped.length > 0) fb.innerText = `한 줄 최대 ${MAX_PER_ROW}개라서 ${MAX_PER_ROW}개로 줄였습니다.`;
+            if (parsed.tooManyRows) fb.innerText = `줄은 최대 ${MAX_ROWS}개까지예요. 앞의 ${MAX_ROWS}줄만 사용합니다.`;
+            else if (parsed.clipped.length > 0) fb.innerText = `한 줄 최대 ${MAX_PER_ROW}개라서 ${MAX_PER_ROW}개로 줄였습니다.`;
             else if (parsed.rows.length < 2) fb.innerText = parsed.rows.length === 0 ? '' : '줄을 2개 이상 입력하세요.';
             else fb.innerText = '';
             if (applyToGame && parsed.rows.length >= 2) initialRowCounts = parsed.rows;
@@ -998,6 +1002,7 @@
         }
 
         const MAX_PER_ROW = 20; // 한 줄 최대 버블 수
+        const MAX_ROWS = 7;     // 최대 줄 수
         let dragState = null;   // { row, mode: 'add' | 'remove' }
 
         // 드래그로 같은 줄의 버블을 연속 선택/해제
@@ -1696,7 +1701,7 @@
                     if (!Array.isArray(data.rows) || data.rows.length < 2) return;
                     theirName = String(data.name || '상대').slice(0, 10) || '상대';
                     turnLimit = (typeof data.turnLimit === 'number') ? data.turnLimit : 10;
-                    beginOnlineRps(data.rows.map(n => Math.max(1, Math.min(parseInt(n) || 1, MAX_PER_ROW))));
+                    beginOnlineRps(data.rows.slice(0, MAX_ROWS).map(n => Math.max(1, Math.min(parseInt(n) || 1, MAX_PER_ROW))));
                     break;
                 }
                 case 'resign': {
