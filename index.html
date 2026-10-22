@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>팝잇 님 게임 (Pop-It Nim Game)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            min-height: 100vh;
+        }
+
+        .font-jua {
+            font-family: 'Jua', sans-serif;
+        }
+
+        /* Pop-it Bubble Responsive Styling */
+        .bubble {
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.2s;
+            box-shadow: inset -3px -3px 6px rgba(0,0,0,0.25), inset 3px 3px 6px rgba(255,255,255,0.6), 0 4px 6px rgba(0,0,0,0.15);
+            flex-shrink: 0;
+        }
+
+        .bubble:hover:not(.popped):not(:disabled) {
+            transform: scale(1.08);
+            cursor: pointer;
+        }
+
+        .bubble:active:not(.popped):not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .bubble.popped {
+            box-shadow: inset 3px 3px 6px rgba(0,0,0,0.4), inset -2px -2px 4px rgba(255,255,255,0.2);
+            opacity: 0.45;
+            transform: scale(0.92);
+        }
+
+        .bubble.selected-temp {
+            outline: 4px solid #3b82f6;
+            outline-offset: 2px;
+            transform: scale(1.05);
+        }
+
+        /* 상대가 고르는 중인 버블 (온라인 대전) */
+        .bubble.selected-remote {
+            outline: 4px dashed #f59e0b;
+            outline-offset: 2px;
+            transform: scale(1.05);
+        }
+
+        /* Soft Glow effects */
+        .glow-turn {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
+
+        .room-code {
+            letter-spacing: 0.3em;
+        }
+
+        /* Custom Scrollbar for small screen responsiveness */
+        ::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.05);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen text-slate-800 pb-10">
+
+    <!-- Header Navigation -->
+    <header class="w-full bg-white/80 backdrop-blur-md shadow-sm py-4 px-4 sm:px-6 mb-4 sm:mb-6 sticky top-0 z-40">
+        <div class="max-w-4xl mx-auto flex justify-between items-center flex-wrap gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-pink-400 to-indigo-500 flex items-center justify-center text-white text-lg sm:text-xl font-bold shadow-md shrink-0">
+                    <i class="fa-solid fa-circle-dot"></i>
+                </div>
+                <h1 class="text-xl sm:text-2xl md:text-3xl font-jua text-slate-800 tracking-wide">팝잇 님(Nim) 게임</h1>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="playButtonClick(); openRulesModal();" class="px-3 py-1.5 sm:px-4 sm:py-2 bg-indigo-50 text-indigo-600 rounded-xl font-semibold hover:bg-indigo-100 transition flex items-center gap-2 border border-indigo-200 text-xs sm:text-sm">
+                    <i class="fa-solid fa-book-open"></i> 게임 규칙
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-4xl w-full mx-auto px-3 sm:px-6 flex flex-col items-center">
+
+        <!-- Step 1: Game Setup Panel -->
+        <div id="setup-panel" class="w-full bg-white rounded-3xl p-5 sm:p-8 shadow-xl border border-white/50 mb-6 transition-all">
+            <h2 class="text-lg sm:text-2xl font-jua text-center mb-6 text-slate-700">1. 게임 모드 선택</h2>
+            
+            <!-- Game Mode Selector -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 sm:mb-8">
+                <button id="mode-ai" onclick="playButtonClick(); setGameMode('ai');" class="py-3 px-4 rounded-2xl font-bold text-center border-2 border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm transition text-sm sm:text-base">
+                    <i class="fa-solid fa-robot mr-2"></i> AI 대전
+                </button>
+                <button id="mode-2p" onclick="playButtonClick(); setGameMode('2p');" class="py-3 px-4 rounded-2xl font-bold text-center border-2 border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 text-sm sm:text-base">
+                    <i class="fa-solid fa-user-group mr-2"></i> 로컬 2인 대전
+                </button>
+                <button id="mode-online" onclick="playButtonClick(); setGameMode('online');" class="py-3 px-4 rounded-2xl font-bold text-center border-2 border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 text-sm sm:text-base">
+                    <i class="fa-solid fa-globe mr-2"></i> 온라인 대전
+                </button>
+            </div>
+
+            <!-- Custom Rows Config -->
+            <div class="mb-6 sm:mb-8 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <label class="block font-semibold mb-2 text-slate-600 text-xs sm:text-sm">팝잇 줄 설정 (기본: 2개, 5개, 6개)</label>
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+                    <input type="text" id="custom-rows-input" value="2, 5, 6" placeholder="예: 3, 5, 7" class="flex-1 px-4 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-mono text-sm">
+                    <button onclick="playButtonClick(); applyCustomRows();" class="px-5 py-2 bg-slate-700 text-white rounded-xl font-semibold hover:bg-slate-800 transition text-sm">적용</button>
+                </div>
+                <p class="text-xs text-slate-400 mt-1.5">* 쉼표(,)로 구분하여 2개 이상의 줄 버블 수를 설정하세요. 온라인 대전에서는 방장의 설정이 적용됩니다.</p>
+            </div>
+
+            <!-- Rock-Paper-Scissors Section (For AI Mode) -->
+            <div id="rps-section" class="text-center border-t pt-6 border-slate-100">
+                <p class="font-semibold text-slate-700 mb-3 text-sm sm:text-base">가위바위보로 선공/후공 정하기</p>
+                <div class="flex justify-center gap-2 sm:gap-3 mb-4">
+                    <button onclick="playButtonClick(); playRPS('scissors');" class="px-4 py-2.5 sm:px-5 sm:py-3 bg-pink-50 hover:bg-pink-100 text-pink-600 border border-pink-200 rounded-2xl font-bold transition text-base sm:text-lg flex items-center gap-1.5 shadow-sm">
+                        ✌️ 가위
+                    </button>
+                    <button onclick="playButtonClick(); playRPS('rock');" class="px-4 py-2.5 sm:px-5 sm:py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-2xl font-bold transition text-base sm:text-lg flex items-center gap-1.5 shadow-sm">
+                        ✊ 바위
+                    </button>
+                    <button onclick="playButtonClick(); playRPS('paper');" class="px-4 py-2.5 sm:px-5 sm:py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-2xl font-bold transition text-base sm:text-lg flex items-center gap-1.5 shadow-sm">
+                        🖐️ 보
+                    </button>
+                </div>
+
+                <div id="rps-result" class="hidden p-4 rounded-2xl bg-amber-50 border border-amber-200 text-center font-bold text-xs sm:text-sm">
+                    <p id="rps-result-text" class="text-slate-800 mb-2"></p>
+                    <div id="order-choice" class="hidden flex flex-wrap justify-center gap-2 sm:gap-3 mt-3">
+                        <button onclick="playButtonClick(); startGame(true);" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition">
+                            내가 선공 (먼저 하기)
+                        </button>
+                        <button onclick="playButtonClick(); startGame(false);" class="px-4 py-2 bg-slate-600 text-white font-bold rounded-xl hover:bg-slate-700 transition">
+                            내가 후공 (나중에 하기)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Direct Start Section for 2P Mode -->
+            <div id="direct-start-section" class="hidden text-center border-t pt-6 border-slate-100">
+                <button onclick="playButtonClick(); startGame(true);" class="w-full sm:w-auto px-8 py-3.5 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg hover:bg-indigo-700 transition text-base sm:text-lg flex items-center justify-center gap-2 mx-auto">
+                    <i class="fa-solid fa-play"></i> 2인 대전 시작하기
+                </button>
+            </div>
+
+            <!-- Online Section -->
+            <div id="online-section" class="hidden border-t pt-6 border-slate-100">
+                <!-- Lobby: create / join -->
+                <div id="online-lobby" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl text-center flex flex-col justify-between gap-3">
+                        <div>
+                            <p class="font-jua text-base sm:text-lg text-indigo-900 mb-1"><i class="fa-solid fa-house-chimney mr-1"></i> 방 만들기</p>
+                            <p class="text-xs text-indigo-700/80">방을 만든 뒤 코드나 링크를 친구에게 보내세요.</p>
+                        </div>
+                        <button onclick="playButtonClick(); createRoom();" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl shadow hover:bg-indigo-700 transition text-sm sm:text-base">
+                            방 만들기
+                        </button>
+                    </div>
+                    <div class="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl text-center flex flex-col justify-between gap-3">
+                        <div>
+                            <p class="font-jua text-base sm:text-lg text-emerald-900 mb-1"><i class="fa-solid fa-right-to-bracket mr-1"></i> 방 참가하기</p>
+                            <p class="text-xs text-emerald-700/80">친구에게 받은 6자리 방 코드를 입력하세요.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <input type="text" id="join-code-input" maxlength="6" placeholder="방 코드" autocapitalize="characters" class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400 font-mono text-center text-base uppercase room-code" onkeydown="if(event.key==='Enter'){playButtonClick(); joinRoom();}">
+                            <button onclick="playButtonClick(); joinRoom();" class="px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-xl shadow hover:bg-emerald-700 transition text-sm sm:text-base">참가</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Waiting / status -->
+                <div id="online-waiting" class="hidden text-center bg-amber-50 border border-amber-200 p-5 rounded-2xl">
+                    <p id="online-status" class="font-bold text-slate-800 text-sm sm:text-base mb-3"></p>
+                    <div id="room-code-box" class="hidden mb-4">
+                        <p class="text-xs text-slate-500 mb-1">방 코드</p>
+                        <p id="room-code-text" class="font-mono font-extrabold text-3xl sm:text-4xl text-indigo-700 room-code mb-3">------</p>
+                        <div class="flex flex-wrap justify-center gap-2">
+                            <button onclick="playButtonClick(); copyRoomCode();" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-xl font-semibold hover:bg-slate-100 transition text-xs sm:text-sm flex items-center gap-1.5">
+                                <i class="fa-regular fa-copy"></i> 코드 복사
+                            </button>
+                            <button onclick="playButtonClick(); copyRoomLink();" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-xl font-semibold hover:bg-slate-100 transition text-xs sm:text-sm flex items-center gap-1.5">
+                                <i class="fa-solid fa-link"></i> 링크 복사
+                            </button>
+                        </div>
+                        <p id="copy-feedback" class="text-xs text-emerald-600 font-semibold mt-2 h-4"></p>
+                    </div>
+                    <div class="flex justify-center items-center gap-2 text-slate-500 text-xs mb-4" id="online-spinner">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> 연결 대기 중
+                    </div>
+                    <button onclick="playButtonClick(); leaveOnline();" class="px-5 py-2 bg-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-300 transition text-xs sm:text-sm">
+                        취소
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Main Pop-It Game Board -->
+        <div id="game-panel" class="hidden w-full bg-white rounded-3xl p-4 sm:p-8 shadow-xl border border-white/50 mb-6">
+            
+            <!-- Turn & Status Header -->
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4 mb-6 pb-4 border-b border-slate-100">
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <span id="player1-badge" class="px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-bold text-xs sm:text-sm bg-blue-100 text-blue-700 flex items-center gap-1.5">
+                        <i class="fa-solid fa-user"></i> 플레이어 1
+                    </span>
+                    <span class="text-slate-300 font-bold text-xs">VS</span>
+                    <span id="player2-badge" class="px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-bold text-xs sm:text-sm bg-slate-100 text-slate-500 flex items-center gap-1.5">
+                        <i class="fa-solid fa-robot"></i> AI
+                    </span>
+                </div>
+
+                <div id="turn-indicator" class="px-5 py-2 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-jua text-lg sm:text-xl shadow-md glow-turn text-center w-full sm:w-auto">
+                    플레이어 1의 차례
+                </div>
+
+                <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button onclick="playButtonClick(); resetToSetup();" class="px-3 py-1.5 text-xs bg-slate-100 text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-200 transition flex items-center gap-1 font-semibold">
+                        <i class="fa-solid fa-rotate-left"></i> 새 게임
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pop-It Game Rows Container -->
+            <div id="popit-board" class="space-y-3 sm:space-y-4 mb-6 w-full overflow-hidden"></div>
+
+            <!-- Control Bar & Instructions -->
+            <div class="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100">
+                <p id="selection-info" class="text-xs sm:text-sm font-semibold text-slate-500 text-center md:text-left">
+                    한 줄에서 원하는 만큼 버블을 터뜨린 뒤 [선택 완료]를 누르세요.
+                </p>
+                <div class="flex items-center gap-2 sm:gap-3 w-full md:w-auto">
+                    <button id="cancel-btn" onclick="playButtonClick(); cancelSelection();" disabled class="flex-1 md:flex-none px-4 sm:px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition text-xs sm:text-sm">
+                        선택 취소
+                    </button>
+                    <button id="confirm-btn" onclick="playButtonClick(); confirmTurn();" disabled class="flex-1 md:flex-none px-5 sm:px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition text-xs sm:text-sm">
+                        선택 완료
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-5 sm:p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl sm:text-2xl font-jua text-slate-800">팝잇 님(Nim) 게임 규칙</h3>
+                <button onclick="closeRulesModal()" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
+            </div>
+
+            <div class="space-y-4 text-slate-600 text-xs sm:text-sm leading-relaxed">
+                <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                    <h4 class="font-bold text-indigo-900 mb-2 flex items-center gap-2 text-sm sm:text-base">
+                        <i class="fa-solid fa-list-check"></i> 기본 게임 규칙
+                    </h4>
+                    <ol class="list-decimal list-inside space-y-1.5 text-indigo-950 font-medium">
+                        <li>AI 대전에서는 가위바위보를 진행하며, 2인 대전은 바로 게임을 진행합니다.</li>
+                        <li>자신의 차례가 되면 팝잇의 **한 줄**을 선택하여 버블을 **1개 이상** 누를 수 있습니다.</li>
+                        <li>선택한 한 줄의 버블을 모두 누를 수도 있지만, **서로 다른 줄의 버블을 동시에 누를 수는 없습니다.**</li>
+                        <li>**마지막 버블을 누르는 사람이 최종 승리**합니다.</li>
+                    </ol>
+                </div>
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                    <h4 class="font-bold text-emerald-900 mb-2 flex items-center gap-2 text-sm sm:text-base">
+                        <i class="fa-solid fa-globe"></i> 온라인 대전
+                    </h4>
+                    <ol class="list-decimal list-inside space-y-1.5 text-emerald-950 font-medium">
+                        <li>한 사람이 [방 만들기]를 눌러 방 코드를 받고, 친구에게 코드나 링크를 보냅니다.</li>
+                        <li>친구가 코드를 입력해 [참가]하면 자동으로 게임이 시작됩니다. 선공은 무작위로 정해집니다.</li>
+                        <li>팝잇 줄 설정은 방장의 설정을 따릅니다.</li>
+                        <li>상대가 고르는 중인 버블은 주황 점선으로 실시간 표시됩니다.</li>
+                        <li>게임이 끝나면 방장이 [다시 대결]을 눌러 같은 상대와 바로 다시 할 수 있습니다.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <button onclick="closeRulesModal()" class="w-full mt-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition text-sm sm:text-base">
+                확인 및 닫기
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="gameover-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 text-center shadow-2xl transform transition-all">
+            <div id="winner-icon" class="w-20 h-20 mx-auto mb-4 rounded-full bg-amber-100 text-amber-500 flex items-center justify-center text-4xl shadow-inner">
+                🏆
+            </div>
+            <h3 id="winner-title" class="text-2xl sm:text-3xl font-jua text-slate-800 mb-2">플레이어 1 승리!</h3>
+            <p id="winner-desc" class="text-slate-600 text-xs sm:text-sm mb-6">마지막 버블을 눌러 게임에서 승리하였습니다.</p>
+            
+            <button id="rematch-btn" onclick="playButtonClick(); requestRematch();" class="hidden w-full py-3.5 mb-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold rounded-xl shadow-lg hover:from-emerald-600 hover:to-teal-700 transition text-sm sm:text-base">
+                <i class="fa-solid fa-rotate mr-1"></i> 같은 상대와 다시 대결
+            </button>
+            <button id="gameover-main-btn" onclick="resetToSetup()" class="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:from-indigo-600 hover:to-purple-700 transition text-sm sm:text-base">
+                새 게임 시작하기
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Game Logic Script -->
+    <script>
+        // Web Audio API Sound Generator (Crisp Pop + Tactile Click)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // 1. Pop-It Bubble Popping Sound (Crisp, High-pitched, Cheerful)
+        function playPopSound(isSelecting = true, pitchVariation = 0) {
+            try {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                const now = audioCtx.currentTime;
+                const popOsc = audioCtx.createOscillator();
+                const popGain = audioCtx.createGain();
+
+                const baseFreq = isSelecting ? (1200 + pitchVariation) : (950 + pitchVariation);
+                const dropFreq = isSelecting ? (450 + pitchVariation * 0.4) : (350 + pitchVariation * 0.4);
+
+                popOsc.type = 'triangle';
+                popOsc.frequency.setValueAtTime(baseFreq, now);
+                popOsc.frequency.exponentialRampToValueAtTime(Math.max(dropFreq, 150), now + 0.03);
+
+                popGain.gain.setValueAtTime(0.4, now);
+                popGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+
+                popOsc.connect(popGain);
+                popGain.connect(audioCtx.destination);
+
+                popOsc.start(now);
+                popOsc.stop(now + 0.035);
+
+                const snapOsc = audioCtx.createOscillator();
+                const snapGain = audioCtx.createGain();
+
+                snapOsc.type = 'sine';
+                snapOsc.frequency.setValueAtTime(isSelecting ? 2800 : 2200, now);
+                snapOsc.frequency.exponentialRampToValueAtTime(600, now + 0.015);
+
+                snapGain.gain.setValueAtTime(0.2, now);
+                snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
+
+                snapOsc.connect(snapGain);
+                snapGain.connect(audioCtx.destination);
+
+                snapOsc.start(now);
+                snapOsc.stop(now + 0.015);
+
+            } catch (e) {
+                console.error("Pop audio error:", e);
+            }
+        }
+
+        // 2. Button Click Sound (Short & Tactile "Snap")
+        function playButtonClick() {
+            try {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                const now = audioCtx.currentTime;
+                const clickOsc = audioCtx.createOscillator();
+                const clickGain = audioCtx.createGain();
+
+                clickOsc.type = 'triangle';
+                clickOsc.frequency.setValueAtTime(1600, now);
+                clickOsc.frequency.exponentialRampToValueAtTime(200, now + 0.012);
+
+                clickGain.gain.setValueAtTime(0.35, now);
+                clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.012);
+
+                clickOsc.connect(clickGain);
+                clickGain.connect(audioCtx.destination);
+
+                clickOsc.start(now);
+                clickOsc.stop(now + 0.012);
+
+            } catch (e) {
+                console.error("Click audio error:", e);
+            }
+        }
+
+        const rowColors = [
+            { unpopped: 'bg-rose-400 border-rose-500', text: 'text-rose-500' },
+            { unpopped: 'bg-amber-400 border-amber-500', text: 'text-amber-500' },
+            { unpopped: 'bg-emerald-400 border-emerald-500', text: 'text-emerald-500' },
+            { unpopped: 'bg-sky-400 border-sky-500', text: 'text-sky-500' },
+            { unpopped: 'bg-purple-400 border-purple-500', text: 'text-purple-500' },
+            { unpopped: 'bg-indigo-400 border-indigo-500', text: 'text-indigo-500' }
+        ];
+
+        let gameMode = 'ai'; // 'ai', '2p', 'online'
+        let initialRowCounts = [2, 5, 6];
+        let currentRows = [];
+        let selectedRowIndex = null;
+        let tempSelectedIndices = [];
+        let currentPlayer = 1;
+        let gameActive = false;
+        let isAiTurn = false;
+
+        // ===== 온라인 대전 상태 =====
+        const PEER_PREFIX = 'popit-nim-';
+        let peer = null;
+        let conn = null;
+        let isHost = false;
+        let myPlayerNum = 1;       // 온라인 대전에서 내가 플레이어 1인지 2인지
+        let roomCode = '';
+        let disconnectHandled = false;
+        let remoteSelectedRow = null;
+        let remoteSelectedIndices = [];
+
+        function isOnline() { return gameMode === 'online'; }
+        function isMyTurn() { return !isOnline() || currentPlayer === myPlayerNum; }
+
+        function getPlayerName(num) {
+            if (isOnline()) return num === myPlayerNum ? '나' : '상대';
+            if (num === 1) return '플레이어 1';
+            return gameMode === 'ai' ? 'AI' : '플레이어 2';
+        }
+
+        function setGameMode(mode) {
+            gameMode = mode;
+            const aiBtn = document.getElementById('mode-ai');
+            const p2Btn = document.getElementById('mode-2p');
+            const onlineBtn = document.getElementById('mode-online');
+            const rpsSection = document.getElementById('rps-section');
+            const directStartSection = document.getElementById('direct-start-section');
+            const onlineSection = document.getElementById('online-section');
+            
+            const activeClass = "py-3 px-4 rounded-2xl font-bold text-center border-2 border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm transition text-sm sm:text-base";
+            const inactiveClass = "py-3 px-4 rounded-2xl font-bold text-center border-2 border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 text-sm sm:text-base";
+
+            if (aiBtn) aiBtn.className = mode === 'ai' ? activeClass : inactiveClass;
+            if (p2Btn) p2Btn.className = mode === '2p' ? activeClass : inactiveClass;
+            if (onlineBtn) onlineBtn.className = mode === 'online' ? activeClass : inactiveClass;
+
+            if (rpsSection) rpsSection.classList.toggle('hidden', mode !== 'ai');
+            if (directStartSection) directStartSection.classList.toggle('hidden', mode !== '2p');
+            if (onlineSection) onlineSection.classList.toggle('hidden', mode !== 'online');
+
+            if (mode !== 'online') leaveOnline();
+        }
+
+        function applyCustomRows() {
+            const input = document.getElementById('custom-rows-input').value;
+            const parsed = input.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0);
+            
+            if (parsed.length < 2) {
+                alert('최소 2개 이상의 줄과 1개 이상의 버블 수를 입력하세요.');
+                return;
+            }
+            initialRowCounts = parsed;
+            alert(`팝잇 설정 변경: [${initialRowCounts.join(', ')}]`);
+        }
+
+        function playRPS(userChoice) {
+            const choices = ['rock', 'paper', 'scissors'];
+            const aiChoice = choices[Math.floor(Math.random() * 3)];
+            const rpsResult = document.getElementById('rps-result');
+            const rpsResultText = document.getElementById('rps-result-text');
+            const orderChoice = document.getElementById('order-choice');
+            const choiceNames = { rock: '✊ 바위', paper: '🖐️ 보', scissors: '✌️ 가위' };
+
+            if (!rpsResult || !rpsResultText || !orderChoice) return;
+
+            rpsResult.classList.remove('hidden');
+
+            if (userChoice === aiChoice) {
+                rpsResultText.innerHTML = `나: ${choiceNames[userChoice]} vs 상대: ${choiceNames[aiChoice]} <br><span class="text-amber-600">비겼습니다! 다시 선택하세요.</span>`;
+                orderChoice.classList.add('hidden');
+            } else if (
+                (userChoice === 'rock' && aiChoice === 'scissors') ||
+                (userChoice === 'paper' && aiChoice === 'rock') ||
+                (userChoice === 'scissors' && aiChoice === 'paper')
+            ) {
+                rpsResultText.innerHTML = `나: ${choiceNames[userChoice]} vs 상대: ${choiceNames[aiChoice]} <br><span class="text-emerald-600">이겼습니다! 순서를 선택하세요.</span>`;
+                orderChoice.classList.remove('hidden');
+            } else {
+                rpsResultText.innerHTML = `나: ${choiceNames[userChoice]} vs 상대: ${choiceNames[aiChoice]} <br><span class="text-rose-600">졌습니다. AI가 선공입니다!</span>`;
+                orderChoice.classList.add('hidden');
+                setTimeout(() => startGame(false), 1200);
+            }
+        }
+
+        function startGame(isFirst) {
+            currentRows = [...initialRowCounts];
+            currentPlayer = isFirst ? 1 : 2;
+            gameActive = true;
+            selectedRowIndex = null;
+            tempSelectedIndices = [];
+            remoteSelectedRow = null;
+            remoteSelectedIndices = [];
+            document.getElementById('confirm-btn').disabled = true;
+            document.getElementById('cancel-btn').disabled = true;
+
+            document.getElementById('setup-panel').classList.add('hidden');
+            document.getElementById('game-panel').classList.remove('hidden');
+
+            const p1Badge = document.getElementById('player1-badge');
+            const p2Badge = document.getElementById('player2-badge');
+            if (isOnline()) {
+                const meHtml = `<i class="fa-solid fa-user"></i> 나`;
+                const otherHtml = `<i class="fa-solid fa-user-astronaut"></i> 상대`;
+                p1Badge.innerHTML = myPlayerNum === 1 ? meHtml : otherHtml;
+                p2Badge.innerHTML = myPlayerNum === 2 ? meHtml : otherHtml;
+            } else {
+                p1Badge.innerHTML = `<i class="fa-solid fa-user"></i> 플레이어 1`;
+                if (gameMode === 'ai') {
+                    p2Badge.innerHTML = `<i class="fa-solid fa-robot"></i> AI`;
+                } else {
+                    p2Badge.innerHTML = `<i class="fa-solid fa-user-gear"></i> 플레이어 2`;
+                }
+            }
+
+            renderBoard();
+            updateTurnUI();
+
+            if (gameMode === 'ai' && currentPlayer === 2) triggerAiTurn();
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('popit-board');
+            if (!board) return;
+            board.innerHTML = '';
+
+            const lockBoard = (isAiTurn && gameMode === 'ai') || (isOnline() && !isMyTurn());
+
+            currentRows.forEach((count, rowIndex) => {
+                const totalInRow = initialRowCounts[rowIndex];
+                const colorTheme = rowColors[rowIndex % rowColors.length];
+
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'w-full flex items-center justify-between bg-slate-50 p-2.5 sm:p-4 rounded-2xl border border-slate-200 shadow-inner gap-2 sm:gap-4 overflow-hidden';
+
+                const label = document.createElement('div');
+                label.className = `font-jua text-sm sm:text-lg w-12 sm:w-16 text-center ${colorTheme.text} shrink-0`;
+                label.innerText = `${rowIndex + 1}번줄`;
+
+                // Fluid Container using overflow auto for tight screen widths
+                const bubblesContainer = document.createElement('div');
+                bubblesContainer.className = 'flex-1 flex flex-wrap gap-1.5 sm:gap-3 items-center justify-start overflow-x-auto py-1 px-1';
+
+                for (let i = 0; i < totalInRow; i++) {
+                    const bubble = document.createElement('button');
+                    const isPopped = i >= count;
+                    const isTempSelected = (selectedRowIndex === rowIndex && tempSelectedIndices.includes(i));
+                    const isRemoteSelected = (isOnline() && remoteSelectedRow === rowIndex && remoteSelectedIndices.includes(i));
+
+                    let classes = `w-8 h-8 sm:w-11 sm:h-11 rounded-full bubble flex items-center justify-center font-bold text-xs ${colorTheme.unpopped}`;
+                    
+                    if (isPopped) {
+                        classes += ' popped bg-slate-300 border-slate-400 cursor-not-allowed';
+                    } else if (isTempSelected) {
+                        classes += ' selected-temp';
+                    } else if (isRemoteSelected) {
+                        classes += ' selected-remote';
+                    }
+
+                    bubble.className = classes;
+                    bubble.disabled = isPopped || lockBoard;
+
+                    bubble.onclick = () => handleBubbleClick(rowIndex, i);
+
+                    bubblesContainer.appendChild(bubble);
+                }
+
+                const countBadge = document.createElement('div');
+                countBadge.className = 'font-mono font-bold text-slate-500 text-xs sm:text-sm w-10 sm:w-12 text-right shrink-0';
+                countBadge.innerText = `${count}개`;
+
+                rowDiv.appendChild(label);
+                rowDiv.appendChild(bubblesContainer);
+                rowDiv.appendChild(countBadge);
+
+                board.appendChild(rowDiv);
+            });
+
+        }
+
+        function handleBubbleClick(rowIndex, bubbleIndex) {
+            if (!gameActive) return;
+            if (isOnline() && !isMyTurn()) return;
+
+            if (selectedRowIndex !== null && selectedRowIndex !== rowIndex) tempSelectedIndices = [];
+            selectedRowIndex = rowIndex;
+
+            const idxPos = tempSelectedIndices.indexOf(bubbleIndex);
+            const rowPitchShift = (rowIndex % 6) * 45;
+
+            if (idxPos > -1) {
+                tempSelectedIndices.splice(idxPos, 1);
+                playPopSound(false, rowPitchShift);
+            } else {
+                tempSelectedIndices.push(bubbleIndex);
+                playPopSound(true, rowPitchShift);
+            }
+
+            if (tempSelectedIndices.length === 0) selectedRowIndex = null;
+
+            document.getElementById('confirm-btn').disabled = tempSelectedIndices.length === 0;
+            document.getElementById('cancel-btn').disabled = tempSelectedIndices.length === 0;
+
+            sendPreview();
+            renderBoard();
+        }
+
+        function cancelSelection() {
+            selectedRowIndex = null;
+            tempSelectedIndices = [];
+            document.getElementById('confirm-btn').disabled = true;
+            document.getElementById('cancel-btn').disabled = true;
+            playPopSound(false, 0);
+            sendPreview();
+            renderBoard();
+        }
+
+        function confirmTurn() {
+            if (selectedRowIndex === null || tempSelectedIndices.length === 0) return;
+            if (isOnline() && !isMyTurn()) return;
+
+            const popCount = tempSelectedIndices.length;
+            const row = selectedRowIndex;
+            currentRows[row] -= popCount;
+
+            if (isOnline()) sendData({ type: 'move', row, count: popCount });
+
+            selectedRowIndex = null;
+            tempSelectedIndices = [];
+            document.getElementById('confirm-btn').disabled = true;
+            document.getElementById('cancel-btn').disabled = true;
+
+            renderBoard();
+
+            if (checkGameOver()) return;
+
+            switchTurn();
+        }
+
+        function switchTurn() {
+            currentPlayer = currentPlayer === 1 ? 2 : 1;
+            updateTurnUI();
+
+            if (gameMode === 'ai' && currentPlayer === 2) triggerAiTurn();
+        }
+
+        function updateTurnUI() {
+            const turnIndicator = document.getElementById('turn-indicator');
+            const p1Badge = document.getElementById('player1-badge');
+            const p2Badge = document.getElementById('player2-badge');
+            const info = document.getElementById('selection-info');
+
+            if (!turnIndicator || !p1Badge || !p2Badge) return;
+
+            const name = getPlayerName(currentPlayer);
+            const turnText = isOnline()
+                ? (isMyTurn() ? '내 차례!' : '상대의 차례')
+                : `${name}의 차례`;
+
+            if (currentPlayer === 1) {
+                turnIndicator.innerText = turnText;
+                turnIndicator.className = "px-5 py-2 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-jua text-lg sm:text-xl shadow-md glow-turn text-center w-full sm:w-auto";
+                p1Badge.className = "px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-bold text-xs sm:text-sm bg-blue-500 text-white shadow flex items-center gap-1.5";
+                p2Badge.className = "px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-bold text-xs sm:text-sm bg-slate-100 text-slate-500 flex items-center gap-1.5";
+            } else {
+                turnIndicator.innerText = turnText;
+                turnIndicator.className = "px-5 py-2 rounded-2xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-jua text-lg sm:text-xl shadow-md glow-turn text-center w-full sm:w-auto";
+                p2Badge.className = "px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-bold text-xs sm:text-sm bg-purple-500 text-white shadow flex items-center gap-1.5";
+                p1Badge.className = "px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-bold text-xs sm:text-sm bg-slate-100 text-slate-500 flex items-center gap-1.5";
+            }
+
+            if (info && isOnline()) {
+                info.innerText = isMyTurn()
+                    ? "한 줄에서 원하는 만큼 버블을 터뜨린 뒤 [선택 완료]를 누르세요."
+                    : "상대가 고르는 중입니다... 잠시 기다려 주세요.";
+            } else if (info && !isAiTurn) {
+                info.innerText = "한 줄에서 원하는 만큼 버블을 터뜨린 뒤 [선택 완료]를 누르세요.";
+            }
+        }
+
+        function triggerAiTurn() {
+            isAiTurn = true;
+            document.getElementById('selection-info').innerText = "AI가 생각 중입니다...";
+            renderBoard();
+
+            setTimeout(() => {
+                const bestMove = calculateOptimalMove(currentRows);
+                currentRows[bestMove.row] -= bestMove.count;
+
+                for (let i = 0; i < bestMove.count; i++) {
+                    setTimeout(() => playPopSound(true, (bestMove.row % 6) * 45 + i * 20), i * 110);
+                }
+
+                isAiTurn = false;
+                document.getElementById('selection-info').innerText = "한 줄에서 원하는 만큼 버블을 터뜨린 뒤 [선택 완료]를 누르세요.";
+                renderBoard();
+
+                if (checkGameOver()) return;
+                switchTurn();
+            }, 1000);
+        }
+
+        function calculateOptimalMove(rows) {
+            const availableRows = rows.map((count, row) => ({ row, count })).filter(item => item.count > 0);
+            const remaining = rows.reduce((sum, count) => sum + count, 0);
+            const nimSum = rows.reduce((acc, val) => acc ^ val, 0);
+
+            // AI 난이도: 보통. 약 75%는 최선의 수를 두고, 가끔 자연스러운 실수를 합니다.
+            // 마지막 한 수로 이길 수 있으면 놓치지 않습니다.
+            if (remaining === 1) {
+                return { row: availableRows[0].row, count: 1 };
+            }
+
+            if (nimSum !== 0 && Math.random() < 0.75) {
+                const winningMoves = [];
+                for (let i = 0; i < rows.length; i++) {
+                    const target = rows[i] ^ nimSum;
+                    if (target < rows[i]) winningMoves.push({ row: i, count: rows[i] - target });
+                }
+                if (winningMoves.length > 0) {
+                    return winningMoves[Math.floor(Math.random() * winningMoves.length)];
+                }
+            }
+
+            // 최선의 수가 아니더라도, 무작정 전부 터뜨리기보다는 적당한 수를 선택합니다.
+            // 남은 버블이 적을 때는 게임을 끝낼 기회를 우선합니다.
+            const finishingRow = availableRows.find(item => item.count === remaining);
+            if (finishingRow) return { row: finishingRow.row, count: finishingRow.count };
+
+            const chosen = availableRows[Math.floor(Math.random() * availableRows.length)];
+            const maxTake = Math.min(chosen.count, 3);
+            return { row: chosen.row, count: 1 + Math.floor(Math.random() * maxTake) };
+        }
+
+        function checkGameOver() {
+            if (currentRows.reduce((a, b) => a + b, 0) === 0) {
+                gameActive = false;
+                showGameOverModal();
+                return true;
+            }
+            return false;
+        }
+
+        function showGameOverModal() {
+            const modal = document.getElementById('gameover-modal');
+            const winnerTitle = document.getElementById('winner-title');
+            const winnerDesc = document.getElementById('winner-desc');
+            const winnerIcon = document.getElementById('winner-icon');
+            const rematchBtn = document.getElementById('rematch-btn');
+            const mainBtn = document.getElementById('gameover-main-btn');
+
+            if (isOnline()) {
+                const iWon = currentPlayer === myPlayerNum;
+                winnerTitle.innerText = iWon ? "내가 승리!" : "상대 승리...";
+                winnerIcon.innerText = iWon ? "🏆" : "😢";
+                winnerIcon.className = iWon
+                    ? "w-20 h-20 mx-auto mb-4 rounded-full bg-amber-100 text-amber-500 flex items-center justify-center text-4xl shadow-inner"
+                    : "w-20 h-20 mx-auto mb-4 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-4xl shadow-inner";
+                if (isHost) {
+                    winnerDesc.innerText = iWon ? "마지막 버블을 눌러 승리했습니다!" : "상대가 마지막 버블을 눌렀습니다.";
+                    rematchBtn.classList.remove('hidden');
+                } else {
+                    winnerDesc.innerText = (iWon ? "마지막 버블을 눌러 승리했습니다! " : "상대가 마지막 버블을 눌렀습니다. ") + "방장이 [다시 대결]을 누르면 바로 다시 시작됩니다.";
+                    rematchBtn.classList.add('hidden');
+                }
+                mainBtn.innerText = "방 나가기";
+            } else {
+                winnerTitle.innerText = `${getPlayerName(currentPlayer)} 승리!`;
+                winnerDesc.innerText = "마지막 버블을 눌러 게임에서 최종 승리하였습니다!";
+                winnerIcon.innerText = "🏆";
+                winnerIcon.className = "w-20 h-20 mx-auto mb-4 rounded-full bg-amber-100 text-amber-500 flex items-center justify-center text-4xl shadow-inner";
+                rematchBtn.classList.add('hidden');
+                mainBtn.innerText = "새 게임 시작하기";
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function hideGameOverModal() {
+            const modal = document.getElementById('gameover-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function resetToSetup() {
+            hideGameOverModal();
+            document.getElementById('game-panel').classList.add('hidden');
+            document.getElementById('setup-panel').classList.remove('hidden');
+            selectedRowIndex = null;
+            tempSelectedIndices = [];
+            remoteSelectedRow = null;
+            remoteSelectedIndices = [];
+            gameActive = false;
+            isAiTurn = false;
+            if (isOnline()) {
+                sendData({ type: 'leave' });
+                leaveOnline();
+            }
+        }
+
+        function openRulesModal() {
+            document.getElementById('rules-modal').classList.remove('hidden');
+            document.getElementById('rules-modal').classList.add('flex');
+        }
+
+        function closeRulesModal() {
+            document.getElementById('rules-modal').classList.add('hidden');
+            document.getElementById('rules-modal').classList.remove('flex');
+        }
+
+        // ===================== 온라인 대전 (PeerJS) =====================
+
+        function generateRoomCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 헷갈리는 글자(I, O, 0, 1) 제외
+            let code = '';
+            for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+            return code;
+        }
+
+        function peerAvailable() {
+            if (typeof Peer === 'undefined') {
+                alert('온라인 대전 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하거나 페이지를 새로고침해 주세요.');
+                return false;
+            }
+            return true;
+        }
+
+        function showOnlineWaiting(statusText, showCode) {
+            document.getElementById('online-lobby').classList.add('hidden');
+            document.getElementById('online-waiting').classList.remove('hidden');
+            document.getElementById('online-spinner').classList.remove('hidden');
+            document.getElementById('room-code-box').classList.toggle('hidden', !showCode);
+            setOnlineStatus(statusText, false);
+        }
+
+        function setOnlineStatus(text, isError) {
+            const el = document.getElementById('online-status');
+            el.innerText = text;
+            el.className = isError
+                ? "font-bold text-rose-600 text-sm sm:text-base mb-3"
+                : "font-bold text-slate-800 text-sm sm:text-base mb-3";
+            if (isError) document.getElementById('online-spinner').classList.add('hidden');
+        }
+
+        function cleanupPeer() {
+            disconnectHandled = true; // 정리 중 발생하는 close/error 이벤트는 무시
+            if (conn) { try { conn.close(); } catch (e) {} }
+            if (peer) { try { peer.destroy(); } catch (e) {} }
+            conn = null;
+            peer = null;
+            disconnectHandled = false;
+        }
+
+        function leaveOnline() {
+            cleanupPeer();
+            isHost = false;
+            roomCode = '';
+            const lobby = document.getElementById('online-lobby');
+            const waiting = document.getElementById('online-waiting');
+            if (lobby) lobby.classList.remove('hidden');
+            if (waiting) waiting.classList.add('hidden');
+        }
+
+        function sendData(obj) {
+            if (conn && conn.open) {
+                try { conn.send(obj); } catch (e) { console.error('send error', e); }
+            }
+        }
+
+        function sendPreview() {
+            if (!isOnline()) return;
+            sendData({ type: 'preview', row: selectedRowIndex, indices: [...tempSelectedIndices] });
+        }
+
+        function createRoom(retry = 0) {
+            if (!peerAvailable()) return;
+            cleanupPeer();
+            isHost = true;
+            roomCode = generateRoomCode();
+            showOnlineWaiting('방을 만드는 중...', false);
+
+            peer = new Peer(PEER_PREFIX + roomCode);
+
+            peer.on('open', () => {
+                document.getElementById('room-code-text').innerText = roomCode;
+                document.getElementById('copy-feedback').innerText = '';
+                document.getElementById('room-code-box').classList.remove('hidden');
+                setOnlineStatus('친구에게 코드(또는 링크)를 보내고 접속을 기다리세요.', false);
+            });
+
+            peer.on('connection', (c) => {
+                if (conn) { try { c.close(); } catch (e) {} return; } // 이미 상대가 있으면 거절
+                conn = c;
+                setupConnection();
+            });
+
+            peer.on('error', (err) => {
+                console.error('Peer error:', err);
+                if (err.type === 'unavailable-id' && retry < 3) {
+                    createRoom(retry + 1); // 코드 충돌 시 새 코드로 재시도
+                    return;
+                }
+                setOnlineStatus(`연결 서버 오류가 발생했습니다. (${err.type}) 잠시 후 다시 시도해 주세요.`, true);
+            });
+        }
+
+        function joinRoom() {
+            if (!peerAvailable()) return;
+            const code = document.getElementById('join-code-input').value.trim().toUpperCase();
+            if (code.length !== 6) {
+                alert('6자리 방 코드를 입력하세요.');
+                return;
+            }
+            cleanupPeer();
+            isHost = false;
+            roomCode = code;
+            showOnlineWaiting(`방 ${code}에 접속하는 중...`, false);
+
+            peer = new Peer();
+
+            peer.on('open', () => {
+                conn = peer.connect(PEER_PREFIX + code, { reliable: true });
+                setupConnection();
+            });
+
+            peer.on('error', (err) => {
+                console.error('Peer error:', err);
+                if (err.type === 'peer-unavailable') {
+                    setOnlineStatus('해당 코드의 방을 찾을 수 없습니다. 코드를 다시 확인해 주세요.', true);
+                } else {
+                    setOnlineStatus(`연결 오류가 발생했습니다. (${err.type})`, true);
+                }
+            });
+        }
+
+        function setupConnection() {
+            disconnectHandled = false;
+
+            conn.on('open', () => {
+                if (isHost) {
+                    startOnlineGame();
+                } else {
+                    setOnlineStatus('연결되었습니다! 곧 게임이 시작됩니다...', false);
+                }
+            });
+
+            conn.on('data', handleRemoteData);
+            conn.on('close', onRemoteDisconnect);
+            conn.on('error', (e) => { console.error('conn error', e); onRemoteDisconnect(); });
+        }
+
+        function startOnlineGame() {
+            const hostFirst = Math.random() < 0.5;
+            myPlayerNum = hostFirst ? 1 : 2;
+            sendData({ type: 'init', rows: initialRowCounts, hostFirst });
+            beginOnlineMatch(initialRowCounts);
+        }
+
+        function beginOnlineMatch(rows) {
+            hideGameOverModal();
+            initialRowCounts = [...rows];
+            document.getElementById('online-waiting').classList.add('hidden');
+            document.getElementById('online-lobby').classList.remove('hidden');
+            startGame(true); // 플레이어 1(= 선공)부터 시작, 내가 누구인지는 myPlayerNum이 결정
+        }
+
+        function requestRematch() {
+            if (!isHost || !conn || !conn.open) return;
+            startOnlineGame();
+        }
+
+        function handleRemoteData(data) {
+            if (!data || typeof data !== 'object') return;
+
+            switch (data.type) {
+                case 'init': {
+                    if (!Array.isArray(data.rows) || data.rows.length < 2) return;
+                    myPlayerNum = data.hostFirst ? 2 : 1;
+                    beginOnlineMatch(data.rows);
+                    break;
+                }
+                case 'preview': {
+                    if (!gameActive || isMyTurn()) return;
+                    remoteSelectedRow = (typeof data.row === 'number') ? data.row : null;
+                    remoteSelectedIndices = Array.isArray(data.indices) ? data.indices : [];
+                    if (remoteSelectedIndices.length > 0) {
+                        playPopSound(true, ((remoteSelectedRow || 0) % 6) * 45);
+                    }
+                    renderBoard();
+                    break;
+                }
+                case 'move': {
+                    if (!gameActive || isMyTurn()) return;
+                    const row = data.row, count = data.count;
+                    if (typeof row !== 'number' || typeof count !== 'number') return;
+                    if (row < 0 || row >= currentRows.length || count < 1 || count > currentRows[row]) return;
+
+                    currentRows[row] -= count;
+                    remoteSelectedRow = null;
+                    remoteSelectedIndices = [];
+                    for (let i = 0; i < count; i++) {
+                        setTimeout(() => playPopSound(true, (row % 6) * 45 + i * 20), i * 110);
+                    }
+                    renderBoard();
+                    if (checkGameOver()) return;
+                    switchTurn();
+                    break;
+                }
+                case 'leave': {
+                    onRemoteDisconnect();
+                    break;
+                }
+            }
+        }
+
+        function onRemoteDisconnect() {
+            if (disconnectHandled) return;
+            disconnectHandled = true;
+
+            const wasInGame = gameActive || !document.getElementById('game-panel').classList.contains('hidden');
+            gameActive = false;
+            cleanupPeer();
+
+            if (wasInGame) {
+                // 게임 중 끊김: 안내 모달
+                const winnerTitle = document.getElementById('winner-title');
+                const winnerDesc = document.getElementById('winner-desc');
+                const winnerIcon = document.getElementById('winner-icon');
+                winnerTitle.innerText = "연결이 끊어졌습니다";
+                winnerDesc.innerText = "상대가 나갔거나 연결이 끊겼습니다. 새 게임을 시작해 주세요.";
+                winnerIcon.innerText = "🔌";
+                winnerIcon.className = "w-20 h-20 mx-auto mb-4 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-4xl shadow-inner";
+                document.getElementById('rematch-btn').classList.add('hidden');
+                document.getElementById('gameover-main-btn').innerText = "새 게임 시작하기";
+                const modal = document.getElementById('gameover-modal');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                // 대기 중 끊김
+                setOnlineStatus('상대와의 연결이 끊어졌습니다. 취소 후 다시 시도해 주세요.', true);
+            }
+        }
+
+        function getRoomLink() {
+            const base = location.origin && location.origin !== 'null'
+                ? location.origin + location.pathname
+                : location.href.split('?')[0].split('#')[0];
+            return `${base}?room=${roomCode}`;
+        }
+
+        async function copyText(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch (e) {
+                try {
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    return true;
+                } catch (e2) {
+                    return false;
+                }
+            }
+        }
+
+        async function copyRoomCode() {
+            const ok = await copyText(roomCode);
+            document.getElementById('copy-feedback').innerText = ok ? '코드를 복사했습니다!' : '복사 실패 — 코드를 직접 알려주세요.';
+        }
+
+        async function copyRoomLink() {
+            const ok = await copyText(getRoomLink());
+            document.getElementById('copy-feedback').innerText = ok ? '링크를 복사했습니다!' : '복사 실패 — 코드를 직접 알려주세요.';
+        }
+
+        // 링크(?room=XXXXXX)로 들어온 경우 자동 참가
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(location.search);
+            const room = (params.get('room') || '').trim().toUpperCase();
+            if (room.length === 6) {
+                setGameMode('online');
+                document.getElementById('join-code-input').value = room;
+                joinRoom();
+            }
+        });
+
+        // 페이지를 닫을 때 상대에게 알림
+        window.addEventListener('beforeunload', () => {
+            if (isOnline()) sendData({ type: 'leave' });
+        });
+    </script>
+</body>
+</html>
