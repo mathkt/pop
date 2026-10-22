@@ -332,7 +332,7 @@
                         <li>자신의 차례가 되면 팝잇의 **한 줄**을 선택하여 버블을 **1개 이상** 누를 수 있습니다.</li>
                         <li>선택한 한 줄의 버블을 모두 누를 수도 있지만, **서로 다른 줄의 버블을 동시에 누를 수는 없습니다.**</li>
                         <li>**마지막 버블을 누르는 사람이 최종 승리**합니다.</li>
-                        <li>AI 난이도: 쉬움(마구잡이) / 보통(가끔 실수) / 무적(항상 최선의 수). 무적을 이기면 전적에 "무적 격파"가 쌓입니다.</li>
+                        <li>AI 난이도: 쉬움(마구잡이) / 보통(아주 가끔 실수) / 무적(항상 최선의 수). 무적을 이기면 전적에 "무적 격파"가 쌓입니다.</li>
                         <li>AI·로컬 2인 대전에서는 [무르기]로 직전 수를 되돌릴 수 있습니다. 오른쪽 위 스피커 버튼으로 소리를 끌 수 있습니다.</li>
                     </ol>
                 </div>
@@ -590,7 +590,7 @@
 
         const AI_LEVEL_DESC = {
             easy: '아무 줄이나 마구잡이로 누릅니다. 처음 배우는 학생용.',
-            normal: '대체로 잘 두지만 가끔 실수합니다.',
+            normal: '거의 무적처럼 두지만 아주 가끔(5% 미만) 실수합니다.',
             hard: '항상 최선의 수만 둡니다. 선공·후공과 줄 설정을 잘 고르면 이길 수 있어요!'
         };
         function setAiLevel(level) {
@@ -1177,7 +1177,7 @@
             const remaining = rows.reduce((sum, count) => sum + count, 0);
             const nimSum = rows.reduce((acc, val) => acc ^ val, 0);
 
-            // 난이도별: 쉬움=마구잡이, 보통=75% 최선, 무적=항상 최선
+            // 난이도별: 쉬움=마구잡이, 보통=약 96% 최선(아주 가끔 실수), 무적=항상 최선
             if (aiLevel === 'easy') {
                 const chosen = availableRows[Math.floor(Math.random() * availableRows.length)];
                 return { row: chosen.row, count: 1 + Math.floor(Math.random() * chosen.count) };
@@ -1188,8 +1188,13 @@
                 return { row: availableRows[0].row, count: 1 };
             }
 
-            const bestChance = aiLevel === 'hard' ? 1.0 : 0.75;
-            if (nimSum !== 0 && Math.random() < bestChance) {
+            const bestChance = aiLevel === 'hard' ? 1.0 : 0.96;
+            const blunder = nimSum !== 0 && Math.random() >= bestChance; // 보통: 이기는 수가 있는데도 일부러 놓치는 경우
+            if (blunder) {
+                const chosen = availableRows[Math.floor(Math.random() * availableRows.length)];
+                return { row: chosen.row, count: 1 + Math.floor(Math.random() * chosen.count) };
+            }
+            if (nimSum !== 0) {
                 const winningMoves = [];
                 for (let i = 0; i < rows.length; i++) {
                     const target = rows[i] ^ nimSum;
@@ -1205,15 +1210,9 @@
             const finishingRow = availableRows.find(item => item.count === remaining);
             if (finishingRow) return { row: finishingRow.row, count: finishingRow.count };
 
-            // 무적: 이기는 수가 없을 때(님 합 0)는 가장 많은 줄에서 1개만 — 상대에게 실수 기회를 최대한 줌
-            if (aiLevel === 'hard') {
-                const biggest = availableRows.reduce((a, b) => (b.count > a.count ? b : a), availableRows[0]);
-                return { row: biggest.row, count: 1 };
-            }
-
-            const chosen = availableRows[Math.floor(Math.random() * availableRows.length)];
-            const maxTake = Math.min(chosen.count, 3);
-            return { row: chosen.row, count: 1 + Math.floor(Math.random() * maxTake) };
+            // 이기는 수가 없을 때(님 합 0): 가장 많은 줄에서 1개만 — 상대에게 실수 기회를 최대한 줌
+            const biggest = availableRows.reduce((a, b) => (b.count > a.count ? b : a), availableRows[0]);
+            return { row: biggest.row, count: 1 };
         }
 
         function checkGameOver() {
