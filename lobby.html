@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>팝잇 님 게임 — 선생님 로비</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;600;800&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); min-height: 100vh; }
+        .font-jua { font-family: 'Jua', sans-serif; }
+        .dot { width: 14px; height: 14px; border-radius: 9999px; display: inline-block; box-shadow: inset -2px -2px 3px rgba(0,0,0,.25), inset 2px 2px 3px rgba(255,255,255,.6); }
+        .dot.popped { opacity: .3; transform: scale(.8); }
+        .big .dot { width: 28px; height: 28px; }
+        .card-turn { box-shadow: 0 0 0 3px #6366f1, 0 10px 20px rgba(99,102,241,.25); }
+    </style>
+</head>
+<body class="text-slate-800 pb-10">
+    <header class="w-full bg-white/80 backdrop-blur-md shadow-sm py-4 px-4 sm:px-6 mb-6 sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto flex justify-between items-center flex-wrap gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-400 to-indigo-500 flex items-center justify-center text-white text-xl font-bold shadow-md"><i class="fa-solid fa-chalkboard-user"></i></div>
+                <h1 class="text-xl sm:text-2xl md:text-3xl font-jua tracking-wide">팝잇 님 게임 · 선생님 로비</h1>
+            </div>
+            <div class="flex items-center gap-2 text-sm">
+                <input type="text" id="lobby-input" maxlength="12" placeholder="학급 코드 (예: 1-3)" class="w-40 px-3 py-2 rounded-xl border border-slate-300 font-mono font-bold text-center uppercase focus:outline-none focus:ring-2 focus:ring-indigo-400" onkeydown="if(event.key==='Enter') openLobby();">
+                <button onclick="openLobby()" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition">열기</button>
+                <a href="./" class="px-3 py-2 bg-slate-100 text-slate-600 border border-slate-300 rounded-xl font-semibold hover:bg-slate-200 transition text-xs">게임 페이지</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 sm:px-6">
+        <div id="intro" class="bg-white rounded-3xl p-8 shadow-xl border border-white/50 text-center">
+            <p class="font-jua text-2xl mb-2">학급 코드를 입력하고 [열기]를 누르세요</p>
+            <p class="text-slate-500 text-sm">학생들이 게임 페이지의 <b>학급 코드</b> 칸에 같은 코드를 넣고 방을 만들면, 여기에 실시간으로 대결이 표시됩니다.</p>
+        </div>
+
+        <div id="lobby" class="hidden">
+            <!-- top bar -->
+            <div class="bg-white rounded-3xl p-5 shadow-xl border border-white/50 mb-5 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <div id="lobby-qr" class="bg-white p-1 rounded-xl border border-slate-200 shadow-sm"></div>
+                    <div>
+                        <p class="text-xs text-slate-500">학급 코드</p>
+                        <p id="lobby-title" class="font-mono font-extrabold text-3xl text-indigo-700 tracking-widest">----</p>
+                        <p class="text-xs text-slate-500 mt-1">학생 접속 링크: <span id="student-link" class="font-mono text-indigo-600 break-all"></span>
+                            <button onclick="copyStudentLink()" class="ml-1 px-2 py-0.5 bg-slate-100 border border-slate-300 rounded-md text-[11px] font-semibold hover:bg-slate-200"><i class="fa-regular fa-copy"></i> 복사</button>
+                            <span id="copy-fb" class="text-emerald-600 font-semibold ml-1"></span>
+                        </p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2 text-xs">
+                    <span id="stat-rooms" class="px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 font-bold">방 0</span>
+                    <span id="stat-playing" class="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-bold">대결 중 0</span>
+                    <span id="stat-games" class="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-700 font-bold">끝난 판 0</span>
+                    <button onclick="cleanStaleRooms()" class="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 border border-slate-300 font-semibold hover:bg-slate-200"><i class="fa-solid fa-broom"></i> 오래된 방 정리</button>
+                </div>
+            </div>
+
+            <!-- rooms grid -->
+            <h2 class="font-jua text-xl mb-3 text-slate-700"><i class="fa-solid fa-table-cells-large text-indigo-500 mr-1"></i> 진행 중인 대결 <span class="text-sm font-sans text-slate-400 font-normal">(카드를 누르면 크게 보기)</span></h2>
+            <div id="rooms" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8"></div>
+
+            <!-- records -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div class="bg-white rounded-3xl p-5 shadow-xl border border-white/50">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="font-jua text-xl text-slate-700"><i class="fa-solid fa-ranking-star text-amber-500 mr-1"></i> 학생별 전적</h2>
+                        <button onclick="clearRecords()" class="text-xs text-slate-400 hover:text-rose-600 underline underline-offset-2">전적 초기화</button>
+                    </div>
+                    <table class="w-full text-sm">
+                        <thead><tr class="text-slate-500 text-xs border-b"><th class="text-left py-1">이름</th><th class="py-1">승</th><th class="py-1">패</th><th class="py-1">승률</th></tr></thead>
+                        <tbody id="ranking"></tbody>
+                    </table>
+                </div>
+                <div class="bg-white rounded-3xl p-5 shadow-xl border border-white/50">
+                    <h2 class="font-jua text-xl text-slate-700 mb-3"><i class="fa-solid fa-clock-rotate-left text-indigo-500 mr-1"></i> 최근 결과</h2>
+                    <ul id="recent" class="text-sm space-y-1.5 max-h-80 overflow-y-auto"></ul>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- big view modal -->
+    <div id="big-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm hidden items-center justify-center p-4 z-50" onclick="if(event.target===this) closeBig()">
+        <div class="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl big">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="big-title" class="font-jua text-2xl text-slate-800"></h3>
+                <button onclick="closeBig()" class="text-slate-400 hover:text-slate-600 text-3xl font-bold">&times;</button>
+            </div>
+            <div id="big-body"></div>
+        </div>
+    </div>
+
+    <script>
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDAaY-3LEVWphoxuSwoBjupK2lj1Mhov6w",
+            authDomain: "popit-88756.firebaseapp.com",
+            databaseURL: "https://popit-88756-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "popit-88756",
+            storageBucket: "popit-88756.firebasestorage.app",
+            messagingSenderId: "974332768825",
+            appId: "1:974332768825:web:1b3b72d92f0155b5ddd3e8"
+        };
+        firebase.initializeApp(FIREBASE_CONFIG);
+        const db = firebase.database();
+
+        const rowColors = ['bg-rose-400', 'bg-amber-400', 'bg-emerald-400', 'bg-sky-400', 'bg-purple-400', 'bg-indigo-400', 'bg-teal-400'];
+        const PHASE = { waiting: ['상대 기다리는 중', 'bg-slate-100 text-slate-600'], rps: ['가위바위보', 'bg-amber-100 text-amber-700'], playing: ['대결 중', 'bg-emerald-100 text-emerald-700'], over: ['끝남', 'bg-indigo-100 text-indigo-700'] };
+
+        let lobbyCode = '';
+        let rooms = {};
+        let records = {};
+        let bigCode = null;
+        let roomsRef = null, recordsRef = null;
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+        function openLobby() {
+            const code = document.getElementById('lobby-input').value.trim().toUpperCase().replace(/[.#$\[\]\/]/g, '');
+            if (!code) return;
+            lobbyCode = code;
+            try { localStorage.setItem('popit_teacher_lobby', code); } catch (e) {}
+            history.replaceState(null, '', '?lobby=' + encodeURIComponent(code));
+
+            if (roomsRef) roomsRef.off();
+            if (recordsRef) recordsRef.off();
+            rooms = {}; records = {};
+
+            document.getElementById('intro').classList.add('hidden');
+            document.getElementById('lobby').classList.remove('hidden');
+            document.getElementById('lobby-title').innerText = code;
+
+            const link = location.href.replace(/lobby\.html.*$/, '') + '?lobby=' + encodeURIComponent(code);
+            document.getElementById('student-link').innerText = link;
+            const qr = document.getElementById('lobby-qr');
+            qr.innerHTML = '';
+            try { new QRCode(qr, { text: link, width: 96, height: 96 }); } catch (e) {}
+
+            roomsRef = db.ref('lobbies/' + code + '/rooms');
+            roomsRef.on('value', snap => { rooms = snap.val() || {}; renderRooms(); if (bigCode) renderBig(); });
+            recordsRef = db.ref('records/' + code).limitToLast(300);
+            recordsRef.on('value', snap => { records = snap.val() || {}; renderRecords(); });
+        }
+
+        function copyStudentLink() {
+            const t = document.getElementById('student-link').innerText;
+            navigator.clipboard.writeText(t).then(() => { document.getElementById('copy-fb').innerText = '복사됨!'; setTimeout(() => document.getElementById('copy-fb').innerText = '', 1500); });
+        }
+
+        function boardHtml(r) {
+            const rows = Array.isArray(r.rows) ? r.rows : [];
+            const cur = Array.isArray(r.currentRows) ? r.currentRows : rows;
+            return rows.map((total, i) => {
+                const left = cur[i] != null ? cur[i] : total;
+                let dots = '';
+                for (let k = 0; k < total; k++) dots += `<span class="dot ${rowColors[i % rowColors.length]} ${k >= left ? 'popped' : ''}"></span>`;
+                return `<div class="flex items-center gap-1.5 mb-1"><span class="w-6 text-[11px] font-mono text-slate-400">${i + 1}</span><span class="flex flex-wrap gap-1">${dots}</span><span class="ml-auto text-[11px] font-mono text-slate-500">${left}</span></div>`;
+            }).join('');
+        }
+
+        function renderRooms() {
+            const list = Object.values(rooms).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+            const box = document.getElementById('rooms');
+            document.getElementById('stat-rooms').innerText = `방 ${list.length}`;
+            document.getElementById('stat-playing').innerText = `대결 중 ${list.filter(r => r.phase === 'playing').length}`;
+            if (list.length === 0) {
+                box.innerHTML = '<div class="col-span-full bg-white/70 rounded-2xl p-6 text-center text-slate-500 text-sm">아직 열린 방이 없어요. 학생들이 학급 코드를 넣고 방을 만들면 여기에 나타납니다.</div>';
+                return;
+            }
+            box.innerHTML = list.map(r => {
+                const [label, cls] = PHASE[r.phase] || PHASE.waiting;
+                const stale = Date.now() - (r.updatedAt || 0) > 10 * 60 * 1000;
+                const vs = r.guest ? `${esc(r.host)} <span class="text-slate-300">vs</span> ${esc(r.guest)}` : `${esc(r.host)} <span class="text-slate-400 text-xs">(대기)</span>`;
+                const turn = r.phase === 'playing' && r.turn ? `<p class="text-xs text-indigo-600 font-bold mt-1"><i class="fa-solid fa-hand-pointer"></i> ${esc(r.turn)} 차례</p>` : '';
+                const result = r.phase === 'over' && r.result ? `<p class="text-xs text-amber-700 font-bold mt-1">🏆 ${esc(r.result.winner)} 승리${r.result.reason === 'resign' ? ' (상대 포기)' : ''}</p>` : '';
+                return `<div onclick="openBig('${esc(r.code)}')" class="bg-white rounded-2xl p-4 shadow-lg border border-white/60 cursor-pointer hover:shadow-xl transition ${r.phase === 'playing' ? 'card-turn' : ''} ${stale ? 'opacity-50' : ''}">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-mono font-bold text-slate-400 text-xs">${esc(r.code)}</span>
+                        <span class="px-2 py-0.5 rounded-lg text-[11px] font-bold ${cls}">${label}</span>
+                    </div>
+                    <p class="font-jua text-lg leading-tight">${vs}</p>
+                    ${turn}${result}
+                    <div class="mt-3 bg-slate-50 rounded-xl p-2 border border-slate-100">${boardHtml(r)}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function openBig(code) { bigCode = code; renderBig(); const m = document.getElementById('big-modal'); m.classList.remove('hidden'); m.classList.add('flex'); }
+        function closeBig() { bigCode = null; const m = document.getElementById('big-modal'); m.classList.add('hidden'); m.classList.remove('flex'); }
+        function renderBig() {
+            const r = rooms[bigCode];
+            if (!r) { closeBig(); return; }
+            const [label, cls] = PHASE[r.phase] || PHASE.waiting;
+            document.getElementById('big-title').innerHTML = `${esc(r.host)} <span class="text-slate-300">vs</span> ${esc(r.guest || '…')} <span class="ml-2 px-2 py-0.5 rounded-lg text-xs font-sans font-bold ${cls}">${label}</span>`;
+            let extra = '';
+            if (r.phase === 'playing' && r.turn) extra = `<p class="text-center font-jua text-2xl text-indigo-600 mb-3">${esc(r.turn)}의 차례</p>`;
+            if (r.phase === 'over' && r.result) extra = `<p class="text-center font-jua text-2xl text-amber-600 mb-3">🏆 ${esc(r.result.winner)} 승리!</p>`;
+            document.getElementById('big-body').innerHTML = extra + `<div class="bg-slate-50 rounded-2xl p-4 border border-slate-200">${boardHtml(r)}</div>
+                <p class="text-xs text-slate-400 mt-3 text-center">방 코드 ${esc(r.code)} · 제한시간 ${r.turnLimit ? r.turnLimit + '초' : '없음'}</p>`;
+        }
+
+        function renderRecords() {
+            const list = Object.values(records).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+            document.getElementById('stat-games').innerText = `끝난 판 ${list.length}`;
+            const agg = {};
+            list.forEach(g => {
+                if (!g.winner || !g.loser) return;
+                agg[g.winner] = agg[g.winner] || { w: 0, l: 0 }; agg[g.winner].w++;
+                agg[g.loser] = agg[g.loser] || { w: 0, l: 0 }; agg[g.loser].l++;
+            });
+            const rows = Object.entries(agg).sort((a, b) => b[1].w - a[1].w || a[1].l - b[1].l);
+            document.getElementById('ranking').innerHTML = rows.length
+                ? rows.map(([n, s], i) => `<tr class="border-b border-slate-100"><td class="py-1.5 font-semibold">${i < 3 ? ['🥇', '🥈', '🥉'][i] + ' ' : ''}${esc(n)}</td><td class="text-center text-emerald-700 font-bold">${s.w}</td><td class="text-center text-rose-600 font-bold">${s.l}</td><td class="text-center text-slate-500">${Math.round(100 * s.w / (s.w + s.l))}%</td></tr>`).join('')
+                : '<tr><td colspan="4" class="py-3 text-center text-slate-400 text-xs">아직 끝난 대결이 없어요.</td></tr>';
+            document.getElementById('recent').innerHTML = list.length
+                ? list.slice(0, 40).map(g => {
+                    const d = new Date(g.ts || 0);
+                    const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                    return `<li class="flex items-center gap-2"><span class="font-mono text-slate-400 text-xs w-12">${t}</span><span class="font-bold text-emerald-700">${esc(g.winner)}</span><span class="text-slate-400 text-xs">이(가)</span><span class="text-rose-600">${esc(g.loser)}</span><span class="text-slate-400 text-xs">에게 승리${g.reason === 'resign' ? ' (포기)' : ''}</span></li>`;
+                }).join('')
+                : '<li class="text-slate-400 text-xs">아직 기록이 없어요.</li>';
+        }
+
+        function cleanStaleRooms() {
+            const now = Date.now();
+            const stale = Object.values(rooms).filter(r => now - (r.updatedAt || 0) > 10 * 60 * 1000 || r.phase === 'over' && now - (r.updatedAt || 0) > 3 * 60 * 1000);
+            if (!stale.length) { alert('정리할 방이 없어요.'); return; }
+            if (!confirm(`${stale.length}개의 오래된 방 표시를 지울까요? (학생 게임에는 영향 없음)`)) return;
+            const upd = {};
+            stale.forEach(r => upd[r.code] = null);
+            db.ref('lobbies/' + lobbyCode + '/rooms').update(upd);
+        }
+
+        function clearRecords() {
+            if (!confirm(`학급 ${lobbyCode}의 전적을 모두 지울까요? 되돌릴 수 없어요.`)) return;
+            db.ref('records/' + lobbyCode).remove();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const p = new URLSearchParams(location.search).get('lobby');
+            let saved = '';
+            try { saved = localStorage.getItem('popit_teacher_lobby') || ''; } catch (e) {}
+            const code = (p || saved || '').trim().toUpperCase();
+            if (code) { document.getElementById('lobby-input').value = code; openLobby(); }
+        });
+    </script>
+</body>
+</html>

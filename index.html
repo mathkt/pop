@@ -6,7 +6,8 @@
     <title>팝잇 님 게임 (Pop-It Nim Game)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
     <style>
@@ -175,6 +176,11 @@
 
             <!-- Online Section -->
             <div id="online-section" class="hidden border-t pt-6 border-slate-100">
+                <!-- Class (lobby) code -->
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 mb-3 text-xs sm:text-sm">
+                    <label for="lobby-code-input" class="font-semibold text-slate-600 text-center"><i class="fa-solid fa-chalkboard-user mr-1"></i> 학급 코드 <span class="text-slate-400 font-normal">(선생님이 알려준 코드, 선택)</span></label>
+                    <input type="text" id="lobby-code-input" maxlength="12" placeholder="예: 1-3" oninput="saveLobbyCode()" class="sm:w-40 px-4 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-mono font-semibold text-center uppercase">
+                </div>
                 <!-- Turn time limit (host setting) -->
                 <div class="flex items-center justify-center gap-2 mb-4 text-xs sm:text-sm">
                     <label for="turn-limit-select" class="font-semibold text-slate-600"><i class="fa-solid fa-stopwatch mr-1"></i> 한 수 제한시간</label>
@@ -343,7 +349,7 @@
                     <ol class="list-decimal list-inside space-y-1.5 text-emerald-950 font-medium">
                         <li>한 사람이 [방 만들기]를 눌러 방 코드를 받고, 친구에게 코드·링크·QR로 알려줍니다. 참가자는 코드 입력, 링크 열기, 또는 [카메라로 QR 찍어서 참가] 중 편한 방법으로 들어옵니다.</li>
                         <li>친구가 들어오면 가위바위보 화면이 뜹니다. 5초 안에 내지 않으면 진 것으로, 이긴 사람은 5초 안에 선공/후공을 고르며 안 고르면 후공이 됩니다. (비기면 다시)</li>
-                        <li>팝잇 줄 설정은 방장의 설정을 따릅니다.</li>
+                        <li>팝잇 줄 설정은 방장의 설정을 따릅니다. 학급 코드를 입력하면 선생님 로비 화면에 대결이 표시되고 전적이 모입니다.</li>
                         <li>상대가 고르는 중인 버블은 주황 점선으로 실시간 표시됩니다.</li>
                         <li>한 수 제한시간(기본 10초)이 끝나면 고르던 버블이 확정되고, 고른 게 없으면 무작위로 1개가 눌립니다.</li>
                         <li>[포기 후 다시하기]를 누르면 이 판은 상대의 승리로 기록되고, 방은 유지되어 바로 다음 판을 시작할 수 있습니다.</li>
@@ -644,14 +650,26 @@
         let isAiTurn = false;
 
         // ===== 온라인 대전 상태 =====
-        const PEER_PREFIX = 'popit-nim-';
-        let peer = null;
-        let conn = null;
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDAaY-3LEVWphoxuSwoBjupK2lj1Mhov6w",
+            authDomain: "popit-88756.firebaseapp.com",
+            databaseURL: "https://popit-88756-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "popit-88756",
+            storageBucket: "popit-88756.firebasestorage.app",
+            messagingSenderId: "974332768825",
+            appId: "1:974332768825:web:1b3b72d92f0155b5ddd3e8"
+        };
+        let db = null;              // firebase database (lazy init)
+        let roomRef = null;         // rooms/{CODE}
+        let roomListeners = [];     // [{ref, event, cb}] 정리용
+        let myRole = null;          // 'host' | 'guest'
+        let connected = false;      // 상대와 연결된 상태
+        let lobbyCode = '';         // 학급 코드 (선택)
+        let graceTimer = null;      // 상대 잠깐 끊김 유예
         let isHost = false;
         let myPlayerNum = 1;       // 온라인 대전에서 내가 플레이어 1인지 2인지
         let roomCode = '';
         let disconnectHandled = false;
-        let helloTimer = null;
         let remoteSelectedRow = null;
         let remoteSelectedIndices = [];
 
@@ -752,6 +770,10 @@
 
         // reason: 'last'(마지막 버블) | 'resign'(포기)
         function recordResult(iWon, reason, opp) {
+            if (isOnline()) {
+                writeLobbyRecord(iWon, reason);
+                syncLobby('over', { winner: iWon ? displayName() : theirName, reason });
+            }
             const r = loadRecords();
             if (iWon) r.wins += 1; else r.losses += 1;
             r.history.unshift({ d: new Date().toISOString(), opp: opp || theirName, win: iWon, reason, mode: gameMode, ai: gameMode === 'ai' ? aiLevel : undefined, rows: [...initialRowCounts] });
@@ -929,6 +951,7 @@
 
             renderBoard();
             updateTurnUI();
+            if (isOnline()) syncLobby('playing');
 
             if (gameMode === 'ai' && currentPlayer === 2) triggerAiTurn();
         }
@@ -1106,6 +1129,7 @@
             currentPlayer = currentPlayer === 1 ? 2 : 1;
             updateTurnUI();
             renderBoard(); // 차례가 바뀐 상태로 보드 잠금/해제를 다시 반영
+            if (isOnline()) syncLobby('playing');
 
             if (gameMode === 'ai' && currentPlayer === 2) triggerAiTurn();
         }
@@ -1375,12 +1399,33 @@
             return code;
         }
 
-        function peerAvailable() {
-            if (typeof Peer === 'undefined') {
-                alert('온라인 대전 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하거나 페이지를 새로고침해 주세요.');
+        function dbAvailable() {
+            if (typeof firebase === 'undefined' || !firebase.database) {
+                alert('온라인 대전 서버 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하거나 페이지를 새로고침해 주세요.');
                 return false;
             }
+            if (!db) {
+                try {
+                    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+                    db = firebase.database();
+                } catch (e) {
+                    console.error(e);
+                    alert('온라인 대전 서버에 연결하지 못했습니다.');
+                    return false;
+                }
+            }
             return true;
+        }
+
+        function loadLobbyCode() {
+            try { lobbyCode = (localStorage.getItem('popit_lobby') || '').trim().toUpperCase(); } catch (e) { lobbyCode = ''; }
+            const input = document.getElementById('lobby-code-input');
+            if (input) input.value = lobbyCode;
+        }
+        function saveLobbyCode() {
+            const input = document.getElementById('lobby-code-input');
+            lobbyCode = (input ? input.value : '').trim().toUpperCase().replace(/[.#$\[\]\/]/g, '').slice(0, 12);
+            try { localStorage.setItem('popit_lobby', lobbyCode); } catch (e) {}
         }
 
         function showOnlineWaiting(statusText, showCode) {
@@ -1400,19 +1445,44 @@
             if (isError) document.getElementById('online-spinner').classList.add('hidden');
         }
 
+        // 방 노드에 쓰기 — 규칙상 항상 updatedAt을 함께 보낸다
+        function roomUpdate(obj) {
+            if (!roomRef) return Promise.resolve();
+            const data = Object.assign({}, obj, { updatedAt: firebase.database.ServerValue.TIMESTAMP });
+            return roomRef.update(data).catch(e => console.error('room write error', e));
+        }
+
+        function listen(ref, event, cb) {
+            ref.on(event, cb);
+            roomListeners.push({ ref, event, cb });
+        }
+
+        function detachAll() {
+            roomListeners.forEach(l => { try { l.ref.off(l.event, l.cb); } catch (e) {} });
+            roomListeners = [];
+        }
+
+        // 연결 정리 (방 삭제/퇴장 표시는 호출하는 쪽에서)
         function cleanupPeer() {
-            // 먼저 참조를 비운 뒤 닫는다 — 뒤늦게 도착하는 이전 연결의 close/error 이벤트는
-            // 핸들러의 "현재 연결인지" 검사에서 걸러진다.
-            const oldConn = conn, oldPeer = peer;
-            conn = null;
-            peer = null;
-            if (oldConn) { try { oldConn.close(); } catch (e) {} }
-            if (oldPeer) { try { oldPeer.destroy(); } catch (e) {} }
+            detachAll();
+            if (graceTimer) { clearTimeout(graceTimer); graceTimer = null; }
+            if (roomRef) { try { roomRef.onDisconnect().cancel(); } catch (e) {} }
+            roomRef = null;
+            myRole = null;
+            connected = false;
         }
 
         function leaveOnline() {
+            const ref = roomRef, role = myRole, code = roomCode;
+            if (ref && role) {
+                if (role === 'host') {
+                    removeLobbyEntry(code);
+                    ref.remove().catch(() => {});
+                } else {
+                    ref.update({ guest: null, updatedAt: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+                }
+            }
             cleanupPeer();
-            if (helloTimer) { clearTimeout(helloTimer); helloTimer = null; }
             theirName = '상대';
             isHost = false;
             roomCode = '';
@@ -1422,10 +1492,12 @@
             if (waiting) waiting.classList.add('hidden');
         }
 
+        // 상대에게 메시지 전송 (상대 수신함에 push)
         function sendData(obj) {
-            if (conn && conn.open) {
-                try { conn.send(obj); } catch (e) { console.error('send error', e); }
-            }
+            if (!roomRef || !myRole) return;
+            const to = myRole === 'host' ? 'guest' : 'host';
+            const key = roomRef.child('msg/' + to).push().key;
+            roomUpdate({ ['msg/' + to + '/' + key]: Object.assign({ t: Date.now() }, obj) });
         }
 
         function sendPreview() {
@@ -1433,46 +1505,92 @@
             sendData({ type: 'preview', row: selectedRowIndex, indices: [...tempSelectedIndices] });
         }
 
-        function createRoom(retry = 0) {
-            if (!peerAvailable()) return;
+        // 내 수신함 구독: 도착한 메시지를 처리하고 지운다
+        function listenInbox() {
+            const inbox = roomRef.child('msg/' + myRole);
+            inbox.remove().catch(() => {}); // 이전 잔여 메시지 제거
+            listen(inbox, 'child_added', (snap) => {
+                const data = snap.val();
+                roomUpdate({ ['msg/' + myRole + '/' + snap.key]: null });
+                if (data && typeof data === 'object') handleRemoteData(data);
+            });
+        }
+
+        // 상대 접속 상태 감시: 잠깐 끊김은 10초 유예
+        function watchOpponent(role) {
+            listen(roomRef.child(role + '/online'), 'value', (snap) => {
+                const online = snap.val();
+                if (online === true) {
+                    if (graceTimer) { clearTimeout(graceTimer); graceTimer = null; }
+                    return;
+                }
+                if (!connected) return;
+                if (online === null) { onRemoteDisconnect(); return; } // 상대 노드가 사라짐(퇴장)
+                if (!graceTimer) {
+                    const info = document.getElementById('selection-info');
+                    if (info) info.innerText = '상대 연결이 불안정합니다. 재접속을 기다리는 중...';
+                    graceTimer = setTimeout(() => { graceTimer = null; onRemoteDisconnect(); }, 10000);
+                }
+            });
+            // 방 자체가 사라지면(방장 퇴장) 종료
+            listen(roomRef, 'value', (snap) => { if (!snap.exists() && connected) onRemoteDisconnect(); });
+        }
+
+        async function createRoom(retry = 0) {
+            if (!dbAvailable()) return;
             ensureMyName();
+            saveLobbyCode();
             cleanupPeer();
             isHost = true;
+            myRole = 'host';
             turnLimit = parseInt(document.getElementById('turn-limit-select').value) || 0;
             roomCode = generateRoomCode();
             showOnlineWaiting('방을 만드는 중...', false);
 
-            const p = new Peer(PEER_PREFIX + roomCode);
-            peer = p;
-
-            p.on('open', () => {
-                if (peer !== p) return;
-                document.getElementById('room-code-text').innerText = roomCode;
-                document.getElementById('copy-feedback').innerText = '';
-                document.getElementById('room-code-box').classList.remove('hidden');
-                renderRoomQr();
-                setOnlineStatus('친구에게 코드(또는 링크)를 보내고 접속을 기다리세요.', false);
-            });
-
-            p.on('connection', (c) => {
-                if (peer !== p || conn) { try { c.close(); } catch (e) {} return; } // 이전 방이거나 이미 상대가 있으면 거절
-                conn = c;
-                setupConnection();
-            });
-
-            p.on('error', (err) => {
-                if (peer !== p) return;
-                console.error('Peer error:', err);
-                if (err.type === 'unavailable-id' && retry < 3) {
-                    createRoom(retry + 1); // 코드 충돌 시 새 코드로 재시도
+            const ref = db.ref('rooms/' + roomCode);
+            try {
+                const snap = await ref.once('value');
+                if (snap.exists()) {
+                    if (retry < 5) return createRoom(retry + 1);
+                    setOnlineStatus('방 코드를 만들지 못했습니다. 다시 시도해 주세요.', true);
                     return;
                 }
-                setOnlineStatus(`연결 서버 오류가 발생했습니다. (${err.type}) 잠시 후 다시 시도해 주세요.`, true);
+                roomRef = ref;
+                await ref.set({
+                    createdAt: firebase.database.ServerValue.TIMESTAMP,
+                    updatedAt: firebase.database.ServerValue.TIMESTAMP,
+                    lobby: lobbyCode || null,
+                    host: { name: displayName(), online: true },
+                    guest: null
+                });
+                ref.onDisconnect().update({ 'host/online': false, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+            } catch (e) {
+                console.error(e);
+                setOnlineStatus('서버에 방을 만들지 못했습니다. 잠시 후 다시 시도해 주세요. (규칙 게시가 안 됐을 수 있어요)', true);
+                return;
+            }
+
+            document.getElementById('room-code-text').innerText = roomCode;
+            document.getElementById('copy-feedback').innerText = '';
+            document.getElementById('room-code-box').classList.remove('hidden');
+            renderRoomQr();
+            setOnlineStatus('친구에게 코드(또는 링크)를 보내고 접속을 기다리세요.', false);
+            syncLobby('waiting');
+
+            listenInbox();
+            // 참가자가 들어오면 시작
+            listen(roomRef.child('guest'), 'value', (snap) => {
+                const g = snap.val();
+                if (!g || connected) return;
+                connected = true;
+                theirName = String(g.name || '상대').slice(0, 10) || '상대';
+                watchOpponent('guest');
+                startOnlineGame();
             });
         }
 
-        function joinRoom() {
-            if (!peerAvailable()) return;
+        async function joinRoom() {
+            if (!dbAvailable()) return;
             const code = document.getElementById('join-code-input').value.trim().toUpperCase();
             if (code.length !== 6) {
                 alert('6자리 방 코드를 입력하세요.');
@@ -1481,53 +1599,87 @@
             ensureMyName();
             cleanupPeer();
             isHost = false;
+            myRole = 'guest';
             roomCode = code;
             showOnlineWaiting(`방 ${code}에 접속하는 중...`, false);
 
-            const p = new Peer();
-            peer = p;
-
-            p.on('open', () => {
-                if (peer !== p) return;
-                conn = p.connect(PEER_PREFIX + code, { reliable: true });
-                setupConnection();
-            });
-
-            p.on('error', (err) => {
-                if (peer !== p) return;
-                console.error('Peer error:', err);
-                if (err.type === 'peer-unavailable') {
+            const ref = db.ref('rooms/' + code);
+            try {
+                const snap = await ref.once('value');
+                const room = snap.val();
+                if (!room || !room.host) {
                     setOnlineStatus('해당 코드의 방을 찾을 수 없습니다. 코드를 다시 확인해 주세요.', true);
-                } else {
-                    setOnlineStatus(`연결 오류가 발생했습니다. (${err.type})`, true);
+                    myRole = null; roomCode = '';
+                    return;
                 }
-            });
-        }
-
-        function setupConnection() {
-            disconnectHandled = false;
-            const c = conn; // 이 핸들러들은 이 연결(c)이 아직 현재 연결일 때만 동작
-
-            c.on('open', () => {
-                if (conn !== c) return;
-                if (isHost) {
-                    // 참가자 이름(hello)을 먼저 받은 뒤 시작 — 못 받아도 1초 후 시작
-                    helloTimer = setTimeout(() => { helloTimer = null; if (conn === c) startOnlineGame(); }, 1000);
-                } else {
-                    sendData({ type: 'hello', name: displayName() });
-                    setOnlineStatus('연결되었습니다! 곧 게임이 시작됩니다...', false);
+                if (room.host.online === false) {
+                    setOnlineStatus('방장이 나간 방입니다. 새 코드를 받아 주세요.', true);
+                    myRole = null; roomCode = '';
+                    return;
                 }
-            });
+                if (room.guest && room.guest.online === true) {
+                    setOnlineStatus('이미 상대가 들어간 방입니다.', true);
+                    myRole = null; roomCode = '';
+                    return;
+                }
+                roomRef = ref;
+                theirName = String(room.host.name || '상대').slice(0, 10) || '상대';
+                await ref.update({
+                    guest: { name: displayName(), online: true },
+                    updatedAt: firebase.database.ServerValue.TIMESTAMP
+                });
+                ref.onDisconnect().update({ 'guest/online': false, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+            } catch (e) {
+                console.error(e);
+                setOnlineStatus('방에 접속하지 못했습니다. 잠시 후 다시 시도해 주세요.', true);
+                return;
+            }
 
-            c.on('data', (d) => { if (conn === c) handleRemoteData(d); });
-            c.on('close', () => { if (conn === c) onRemoteDisconnect(); });
-            c.on('error', (e) => { console.error('conn error', e); if (conn === c) onRemoteDisconnect(); });
+            connected = true;
+            listenInbox();
+            watchOpponent('host');
+            setOnlineStatus('연결되었습니다! 곧 게임이 시작됩니다...', false);
         }
 
         // 방장: 줄 설정을 보내고 가위바위보 단계로 진입
         function startOnlineGame() {
             sendData({ type: 'init', rows: initialRowCounts, turnLimit, name: displayName() });
             beginOnlineRps(initialRowCounts);
+        }
+
+        // ===== 선생님 로비용 요약 / 전적 (방장만 기록) =====
+        function syncLobby(phase, result) {
+            if (!isHost || !lobbyCode || !db || !roomCode) return;
+            const names = { 1: myPlayerNum === 1 ? displayName() : theirName, 2: myPlayerNum === 2 ? displayName() : theirName };
+            const summary = {
+                code: roomCode,
+                host: displayName(),
+                guest: connected ? theirName : null,
+                phase,
+                rows: initialRowCounts,
+                currentRows: currentRows.length ? currentRows : initialRowCounts,
+                turnLimit,
+                turn: (phase === 'playing' && gameActive) ? (names[currentPlayer] || null) : null,
+                result: result || null,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+            };
+            db.ref('lobbies/' + lobbyCode + '/rooms/' + roomCode).set(summary).catch(() => {});
+        }
+        function removeLobbyEntry(code) {
+            if (!lobbyCode || !db || !code) return;
+            db.ref('lobbies/' + lobbyCode + '/rooms/' + code).remove().catch(() => {});
+        }
+        function writeLobbyRecord(iWon, reason) {
+            if (!isHost || !lobbyCode || !db) return;
+            const me = displayName();
+            db.ref('records/' + lobbyCode).push({
+                winner: iWon ? me : theirName,
+                loser: iWon ? theirName : me,
+                reason,
+                rows: initialRowCounts,
+                room: roomCode,
+                ts: firebase.database.ServerValue.TIMESTAMP
+            }).catch(() => {});
         }
 
         // 가위바위보 창에 이번 판 줄 설정·제한시간 표시
@@ -1613,6 +1765,7 @@
             renderBoard();
             renderRpsRowsPreview();
 
+            syncLobby('rps');
             rpsRound = 1;
             for (const k in pendingRps) delete pendingRps[k];
             resetRpsRound('가위·바위·보 중 하나를 고르세요.');
@@ -1725,7 +1878,7 @@
         }
 
         function requestRematch() {
-            if (!isHost || !conn || !conn.open) return;
+            if (!isHost || !connected) return;
             startOnlineGame();
         }
 
@@ -1733,11 +1886,6 @@
             if (!data || typeof data !== 'object') return;
 
             switch (data.type) {
-                case 'hello': {
-                    theirName = String(data.name || '상대').slice(0, 10) || '상대';
-                    if (isHost && helloTimer) { clearTimeout(helloTimer); helloTimer = null; startOnlineGame(); }
-                    break;
-                }
                 case 'init': {
                     if (!Array.isArray(data.rows) || data.rows.length < 2) return;
                     theirName = String(data.name || '상대').slice(0, 10) || '상대';
@@ -1807,6 +1955,7 @@
             gameActive = false;
             stopTurnTimer();
             updateForfeitBtn();
+            if (isHost) { removeLobbyEntry(roomCode); if (roomRef) roomRef.remove().catch(() => {}); }
             cleanupPeer();
 
             if (wasInGame) {
@@ -1919,7 +2068,7 @@
             const base = location.origin && location.origin !== 'null'
                 ? location.origin + location.pathname
                 : location.href.split('?')[0].split('#')[0];
-            return `${base}?room=${roomCode}`;
+            return `${base}?room=${roomCode}` + (lobbyCode ? `&lobby=${encodeURIComponent(lobbyCode)}` : '');
         }
 
         async function copyText(text) {
@@ -1962,7 +2111,10 @@
             setAiLevel(['easy', 'normal', 'hard'].includes(savedLevel) ? savedLevel : 'normal');
             renderRecords();
             onRowsInput('custom-rows-input', 'rows-chips', true);
+            loadLobbyCode();
             const params = new URLSearchParams(location.search);
+            const lobbyParam = (params.get('lobby') || '').trim().toUpperCase();
+            if (lobbyParam) { document.getElementById('lobby-code-input').value = lobbyParam; saveLobbyCode(); setGameMode('online'); }
             const room = (params.get('room') || '').trim().toUpperCase();
             if (room.length === 6) {
                 setGameMode('online');
@@ -1973,7 +2125,7 @@
 
         // 페이지를 닫을 때 상대에게 알림
         window.addEventListener('beforeunload', () => {
-            if (isOnline()) sendData({ type: 'leave' });
+            // onDisconnect가 online=false로 바꿔 상대에게 알림 (10초 유예 후 끊김 처리)
         });
     </script>
 </body>
