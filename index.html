@@ -103,6 +103,15 @@
 
         <!-- Step 1: Game Setup Panel -->
         <div id="setup-panel" class="w-full bg-white rounded-3xl p-5 sm:p-8 shadow-xl border border-white/50 mb-6 transition-all">
+            <!-- Player name -->
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 mb-5 text-xs sm:text-sm">
+                <label for="player-name-input" class="font-semibold text-slate-600 text-center"><i class="fa-solid fa-id-badge mr-1"></i> 내 이름</label>
+                <input type="text" id="player-name-input" maxlength="10" placeholder="비워두면 랜덤 이름" oninput="saveMyName()" class="sm:w-56 px-4 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-semibold text-center">
+                <button onclick="playButtonClick(); setRandomName();" class="px-3 py-2 bg-slate-100 text-slate-600 border border-slate-300 rounded-xl font-semibold hover:bg-slate-200 transition text-xs">
+                    <i class="fa-solid fa-shuffle"></i> 랜덤 이름
+                </button>
+            </div>
+
             <h2 class="text-lg sm:text-2xl font-jua text-center mb-6 text-slate-700">1. 게임 모드 선택</h2>
             
             <!-- Game Mode Selector -->
@@ -154,11 +163,6 @@
 
             <!-- Online Section -->
             <div id="online-section" class="hidden border-t pt-6 border-slate-100">
-                <!-- Player name -->
-                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 mb-3 text-xs sm:text-sm">
-                    <label for="player-name-input" class="font-semibold text-slate-600 text-center"><i class="fa-solid fa-id-badge mr-1"></i> 내 이름</label>
-                    <input type="text" id="player-name-input" maxlength="10" placeholder="이름 입력 (최대 10자)" oninput="saveMyName()" class="sm:w-56 px-4 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-semibold text-center">
-                </div>
                 <!-- Turn time limit (host setting) -->
                 <div class="flex items-center justify-center gap-2 mb-4 text-xs sm:text-sm">
                     <label for="turn-limit-select" class="font-semibold text-slate-600"><i class="fa-solid fa-stopwatch mr-1"></i> 한 수 제한시간</label>
@@ -219,15 +223,15 @@
                     </button>
                 </div>
 
-                <!-- My records (stored in this browser) -->
-                <div id="records-panel" class="mt-5 bg-white border border-slate-200 rounded-2xl p-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <p class="font-jua text-base text-slate-700"><i class="fa-solid fa-trophy text-amber-500 mr-1"></i> 내 전적 <span id="records-total" class="font-mono text-sm text-slate-500 ml-1"></span></p>
-                        <button onclick="playButtonClick(); clearRecords();" class="text-xs text-slate-400 hover:text-rose-600 underline underline-offset-2">기록 지우기</button>
-                    </div>
-                    <ul id="records-list" class="text-xs sm:text-sm text-slate-600 space-y-1"></ul>
-                    <p class="text-[11px] text-slate-400 mt-2">* 이 기기(브라우저)에만 저장됩니다.</p>
+            </div>
+            <!-- My records (stored in this browser) -->
+            <div id="records-panel" class="mt-6 bg-white border border-slate-200 rounded-2xl p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <p class="font-jua text-base text-slate-700"><i class="fa-solid fa-trophy text-amber-500 mr-1"></i> 내 전적 <span id="records-total" class="font-mono text-sm text-slate-500 ml-1"></span></p>
+                    <button onclick="playButtonClick(); clearRecords();" class="text-xs text-slate-400 hover:text-rose-600 underline underline-offset-2">기록 지우기</button>
                 </div>
+                <ul id="records-list" class="text-xs sm:text-sm text-slate-600 space-y-1"></ul>
+                <p class="text-[11px] text-slate-400 mt-2">* 이 기기(브라우저)에만 저장됩니다.</p>
             </div>
         </div>
 
@@ -613,6 +617,23 @@
         }
         function displayName() { return myName || '나'; }
 
+        const NAME_ADJ = ['용감한', '씩씩한', '날쌘', '똑똑한', '엉뚱한', '느긋한', '반짝이는', '꼬마', '거대한', '수상한', '명랑한', '졸린'];
+        const NAME_ANIMAL = ['수달', '펭귄', '두더지', '고양이', '여우', '판다', '거북이', '다람쥐', '돌고래', '올빼미', '카피바라', '햄스터'];
+        function makeRandomName() {
+            const a = NAME_ADJ[Math.floor(Math.random() * NAME_ADJ.length)];
+            const b = NAME_ANIMAL[Math.floor(Math.random() * NAME_ANIMAL.length)];
+            return `${a}${b}${Math.floor(Math.random() * 90) + 10}`.slice(0, 10);
+        }
+        function setRandomName() {
+            document.getElementById('player-name-input').value = makeRandomName();
+            saveMyName();
+        }
+        // 이름이 비어 있으면 랜덤 이름을 채워 넣는다
+        function ensureMyName() {
+            saveMyName();
+            if (!myName) setRandomName();
+        }
+
         function loadRecords() {
             try {
                 const r = JSON.parse(localStorage.getItem(RECORDS_KEY) || 'null');
@@ -623,10 +644,10 @@
         function saveRecords(r) { try { localStorage.setItem(RECORDS_KEY, JSON.stringify(r)); } catch (e) {} }
 
         // reason: 'last'(마지막 버블) | 'resign'(포기)
-        function recordResult(iWon, reason) {
+        function recordResult(iWon, reason, opp) {
             const r = loadRecords();
             if (iWon) r.wins += 1; else r.losses += 1;
-            r.history.unshift({ d: new Date().toISOString(), opp: theirName, win: iWon, reason, rows: [...initialRowCounts] });
+            r.history.unshift({ d: new Date().toISOString(), opp: opp || theirName, win: iWon, reason, mode: gameMode, rows: [...initialRowCounts] });
             if (r.history.length > 50) r.history.length = 50;
             saveRecords(r);
             renderRecords();
@@ -655,7 +676,10 @@
                     ? '<span class="inline-block w-9 text-center rounded-md bg-emerald-100 text-emerald-700 font-bold">승</span>'
                     : '<span class="inline-block w-9 text-center rounded-md bg-rose-100 text-rose-700 font-bold">패</span>';
                 const why = h.reason === 'resign' ? (h.win ? ' (상대 포기)' : ' (포기)') : '';
-                return `<li class="flex items-center gap-2"><span class="font-mono text-slate-400 w-24 shrink-0">${when}</span>${badge}<span class="truncate">vs ${h.opp || '상대'}${why}</span></li>`;
+                const modeTag = h.mode === 'ai'
+                    ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-semibold">AI</span>'
+                    : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-semibold">온라인</span>';
+                return `<li class="flex items-center gap-2"><span class="font-mono text-slate-400 w-24 shrink-0">${when}</span>${badge}${modeTag}<span class="truncate">vs ${h.opp || '상대'}${why}</span></li>`;
             }).join('');
         }
 
@@ -669,7 +693,7 @@
 
         function getPlayerName(num) {
             if (isOnline()) return num === myPlayerNum ? displayName() : theirName;
-            if (num === 1) return '플레이어 1';
+            if (num === 1) return gameMode === 'ai' ? displayName() : '플레이어 1';
             return gameMode === 'ai' ? 'AI' : '플레이어 2';
         }
 
@@ -744,6 +768,7 @@
         }
 
         function startGame(isFirst) {
+            if (gameMode === 'ai') ensureMyName();
             currentRows = [...initialRowCounts];
             currentPlayer = isFirst ? 1 : 2;
             gameActive = true;
@@ -765,7 +790,7 @@
                 p1Badge.innerHTML = myPlayerNum === 1 ? meHtml : otherHtml;
                 p2Badge.innerHTML = myPlayerNum === 2 ? meHtml : otherHtml;
             } else {
-                p1Badge.innerHTML = `<i class="fa-solid fa-user"></i> 플레이어 1`;
+                p1Badge.innerHTML = `<i class="fa-solid fa-user"></i> ${gameMode === 'ai' ? displayName() : '플레이어 1'}`;
                 if (gameMode === 'ai') {
                     p2Badge.innerHTML = `<i class="fa-solid fa-robot"></i> AI`;
                 } else {
@@ -1098,6 +1123,7 @@
                 showOnlineResult(iWon, iWon ? "마지막 버블을 눌러 승리했습니다!" : `${theirName}이(가) 마지막 버블을 눌렀습니다.`);
                 return;
             } else {
+                if (gameMode === 'ai') recordResult(currentPlayer === 1, 'last', 'AI');
                 winnerTitle.innerText = `${getPlayerName(currentPlayer)} 승리!`;
                 winnerDesc.innerText = "마지막 버블을 눌러 게임에서 최종 승리하였습니다!";
                 winnerIcon.innerText = "🏆";
@@ -1262,6 +1288,7 @@
 
         function createRoom(retry = 0) {
             if (!peerAvailable()) return;
+            ensureMyName();
             cleanupPeer();
             isHost = true;
             turnLimit = parseInt(document.getElementById('turn-limit-select').value) || 0;
@@ -1303,6 +1330,7 @@
                 alert('6자리 방 코드를 입력하세요.');
                 return;
             }
+            ensureMyName();
             cleanupPeer();
             isHost = false;
             roomCode = code;
