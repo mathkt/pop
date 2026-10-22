@@ -342,11 +342,39 @@
             <h3 id="winner-title" class="text-2xl sm:text-3xl font-jua text-slate-800 mb-2">플레이어 1 승리!</h3>
             <p id="winner-desc" class="text-slate-600 text-xs sm:text-sm mb-6">마지막 버블을 눌러 게임에서 승리하였습니다.</p>
             
-            <button id="rematch-btn" onclick="playButtonClick(); requestRematch();" class="hidden w-full py-3.5 mb-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold rounded-xl shadow-lg hover:from-emerald-600 hover:to-teal-700 transition text-sm sm:text-base">
-                <i class="fa-solid fa-rotate mr-1"></i> 같은 상대와 다시 대결
-            </button>
+            <!-- 온라인: 방장 전용 재대결 컨트롤 -->
+            <div id="online-host-controls" class="hidden">
+                <button id="rematch-btn" onclick="playButtonClick(); requestRematch();" class="w-full py-3.5 mb-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold rounded-xl shadow-lg hover:from-emerald-600 hover:to-teal-700 transition text-sm sm:text-base">
+                    <i class="fa-solid fa-rotate mr-1"></i> 그대로 다시 대결
+                </button>
+                <button id="rematch-settings-btn" onclick="playButtonClick(); toggleRematchSettings();" class="w-full py-3 mb-2 bg-amber-50 text-amber-700 border border-amber-300 font-bold rounded-xl hover:bg-amber-100 transition text-sm sm:text-base">
+                    <i class="fa-solid fa-sliders mr-1"></i> 줄 설정 바꿔서 다시 대결
+                </button>
+                <div id="rematch-settings" class="hidden bg-slate-50 border border-slate-200 rounded-2xl p-3 mb-2 text-left">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">팝잇 줄 설정 (쉼표로 구분)</label>
+                    <div class="flex gap-2 mb-2">
+                        <input type="text" id="rematch-rows-input" class="flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-mono text-sm">
+                        <button onclick="playButtonClick(); randomizeRematchRows();" class="px-3 py-2 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition text-sm">
+                            <i class="fa-solid fa-dice"></i> 랜덤
+                        </button>
+                    </div>
+                    <button onclick="playButtonClick(); startRematchWithRows();" class="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition text-sm">
+                        <i class="fa-solid fa-play mr-1"></i> 이 설정으로 시작
+                    </button>
+                    <p id="rematch-rows-error" class="text-xs text-rose-600 font-semibold mt-1.5 h-4"></p>
+                </div>
+            </div>
+
+            <!-- 온라인: 참가자 대기 표시 -->
+            <div id="online-guest-wait" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-2 text-sm font-semibold text-slate-700">
+                <i class="fa-solid fa-circle-notch fa-spin mr-1 text-amber-500"></i> 방장이 다음 판을 준비하는 중...
+            </div>
+
             <button id="gameover-main-btn" onclick="resetToSetup()" class="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:from-indigo-600 hover:to-purple-700 transition text-sm sm:text-base">
                 새 게임 시작하기
+            </button>
+            <button id="leave-room-btn" onclick="playButtonClick(); resetToSetup();" class="hidden mt-3 text-xs text-slate-400 hover:text-slate-600 underline underline-offset-2">
+                방 나가기
             </button>
         </div>
     </div>
@@ -781,8 +809,6 @@
             const winnerTitle = document.getElementById('winner-title');
             const winnerDesc = document.getElementById('winner-desc');
             const winnerIcon = document.getElementById('winner-icon');
-            const rematchBtn = document.getElementById('rematch-btn');
-            const mainBtn = document.getElementById('gameover-main-btn');
 
             if (isOnline()) {
                 const iWon = currentPlayer === myPlayerNum;
@@ -791,25 +817,65 @@
                 winnerIcon.className = iWon
                     ? "w-20 h-20 mx-auto mb-4 rounded-full bg-amber-100 text-amber-500 flex items-center justify-center text-4xl shadow-inner"
                     : "w-20 h-20 mx-auto mb-4 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-4xl shadow-inner";
-                if (isHost) {
-                    winnerDesc.innerText = iWon ? "마지막 버블을 눌러 승리했습니다!" : "상대가 마지막 버블을 눌렀습니다.";
-                    rematchBtn.classList.remove('hidden');
-                } else {
-                    winnerDesc.innerText = (iWon ? "마지막 버블을 눌러 승리했습니다! " : "상대가 마지막 버블을 눌렀습니다. ") + "방장이 [다시 대결]을 누르면 바로 다시 시작됩니다.";
-                    rematchBtn.classList.add('hidden');
-                }
-                mainBtn.innerText = "방 나가기";
+                winnerDesc.innerText = iWon ? "마지막 버블을 눌러 승리했습니다!" : "상대가 마지막 버블을 눌렀습니다.";
+                setGameOverButtons(isHost ? 'host' : 'guest');
             } else {
                 winnerTitle.innerText = `${getPlayerName(currentPlayer)} 승리!`;
                 winnerDesc.innerText = "마지막 버블을 눌러 게임에서 최종 승리하였습니다!";
                 winnerIcon.innerText = "🏆";
                 winnerIcon.className = "w-20 h-20 mx-auto mb-4 rounded-full bg-amber-100 text-amber-500 flex items-center justify-center text-4xl shadow-inner";
-                rematchBtn.classList.add('hidden');
-                mainBtn.innerText = "새 게임 시작하기";
+                setGameOverButtons('local');
             }
 
             modal.classList.remove('hidden');
             modal.classList.add('flex');
+        }
+
+        // 결과창 버튼 구성: 'local'(새 게임) / 'host'(재대결·설정 변경) / 'guest'(방장 대기)
+        function setGameOverButtons(kind) {
+            const hostControls = document.getElementById('online-host-controls');
+            const guestWait = document.getElementById('online-guest-wait');
+            const mainBtn = document.getElementById('gameover-main-btn');
+            const leaveBtn = document.getElementById('leave-room-btn');
+            const settings = document.getElementById('rematch-settings');
+
+            hostControls.classList.toggle('hidden', kind !== 'host');
+            guestWait.classList.toggle('hidden', kind !== 'guest');
+            mainBtn.classList.toggle('hidden', kind !== 'local');
+            leaveBtn.classList.toggle('hidden', kind === 'local');
+            settings.classList.add('hidden');
+            mainBtn.innerText = "새 게임 시작하기";
+
+            if (kind === 'host') {
+                document.getElementById('rematch-rows-input').value = initialRowCounts.join(', ');
+                document.getElementById('rematch-rows-error').innerText = '';
+            }
+        }
+
+        function toggleRematchSettings() {
+            document.getElementById('rematch-settings').classList.toggle('hidden');
+        }
+
+        function randomizeRematchRows() {
+            const rowCount = 2 + Math.floor(Math.random() * 4);
+            const rows = [];
+            for (let i = 0; i < rowCount; i++) rows.push(2 + Math.floor(Math.random() * 7));
+            document.getElementById('rematch-rows-input').value = rows.join(', ');
+            document.getElementById('rematch-rows-error').innerText = '';
+        }
+
+        function startRematchWithRows() {
+            const input = document.getElementById('rematch-rows-input').value;
+            const parsed = input.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0);
+            if (parsed.length < 2) {
+                document.getElementById('rematch-rows-error').innerText = '줄 2개 이상, 각 줄 1개 이상으로 입력하세요.';
+                return;
+            }
+            initialRowCounts = parsed;
+            // 첫 화면의 설정칸에도 반영 (다음 방에서도 유지)
+            document.getElementById('custom-rows-input').value = parsed.join(', ');
+            document.getElementById('rows-feedback').innerText = `적용됨: [${parsed.join(', ')}]`;
+            requestRematch();
         }
 
         function hideGameOverModal() {
@@ -1208,8 +1274,7 @@
                 winnerDesc.innerText = "상대가 나갔거나 연결이 끊겼습니다. 새 게임을 시작해 주세요.";
                 winnerIcon.innerText = "🔌";
                 winnerIcon.className = "w-20 h-20 mx-auto mb-4 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-4xl shadow-inner";
-                document.getElementById('rematch-btn').classList.add('hidden');
-                document.getElementById('gameover-main-btn').innerText = "새 게임 시작하기";
+                setGameOverButtons('local');
                 const modal = document.getElementById('gameover-modal');
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
