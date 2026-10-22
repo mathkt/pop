@@ -120,16 +120,16 @@
 
             <!-- Custom Rows Config -->
             <div class="mb-6 sm:mb-8 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                <label class="block font-semibold mb-2 text-slate-600 text-xs sm:text-sm">팝잇 줄 설정 (기본: 2개, 5개, 6개)</label>
+                <label class="block font-semibold mb-2 text-slate-600 text-xs sm:text-sm">팝잇 줄 설정 (기본: 2 5 6)</label>
                 <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-                    <input type="text" id="custom-rows-input" value="2, 5, 6" placeholder="예: 3, 5, 7" class="flex-1 px-4 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-mono text-sm">
-                    <button onclick="playButtonClick(); applyCustomRows();" class="px-5 py-2 bg-slate-700 text-white rounded-xl font-semibold hover:bg-slate-800 transition text-sm">적용</button>
+                    <input type="text" id="custom-rows-input" value="2 5 6" placeholder="예: 3 5 7" inputmode="numeric" oninput="onRowsInput('custom-rows-input', 'rows-chips', true)" class="flex-1 px-4 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-mono text-base tracking-widest">
                     <button onclick="playButtonClick(); randomizeRows();" class="px-5 py-2 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition text-sm flex items-center justify-center gap-1.5">
                         <i class="fa-solid fa-dice"></i> 랜덤
                     </button>
                 </div>
-                <p class="text-xs text-slate-400 mt-1.5">* 쉼표(,)로 구분하여 2개 이상의 줄 버블 수를 설정하세요. 한 줄 최대 20개. [랜덤]은 줄 2~5개, 각 줄 2~8개로 섞습니다. 온라인 대전에서는 방장의 설정이 적용됩니다.</p>
-                <p id="rows-feedback" class="text-xs text-indigo-600 font-semibold mt-1 h-4"></p>
+                <div id="rows-chips" class="flex flex-wrap items-center gap-2 mt-3 min-h-[2rem]"></div>
+                <p class="text-xs text-slate-400 mt-1.5">* 숫자를 띄어쓰기로 구분해 입력하면 바로 적용됩니다(줄 2개 이상, 한 줄 최대 20개). [랜덤]은 줄 2~5개, 각 줄 2~8개. 온라인 대전은 방장 설정 적용.</p>
+                <p id="rows-feedback" class="text-xs text-rose-600 font-semibold mt-1 h-4"></p>
             </div>
 
             <!-- Order Choice Section (For AI Mode) -->
@@ -154,6 +154,11 @@
 
             <!-- Online Section -->
             <div id="online-section" class="hidden border-t pt-6 border-slate-100">
+                <!-- Player name -->
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 mb-3 text-xs sm:text-sm">
+                    <label for="player-name-input" class="font-semibold text-slate-600 text-center"><i class="fa-solid fa-id-badge mr-1"></i> 내 이름</label>
+                    <input type="text" id="player-name-input" maxlength="10" placeholder="이름 입력 (최대 10자)" oninput="saveMyName()" class="sm:w-56 px-4 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-semibold text-center">
+                </div>
                 <!-- Turn time limit (host setting) -->
                 <div class="flex items-center justify-center gap-2 mb-4 text-xs sm:text-sm">
                     <label for="turn-limit-select" class="font-semibold text-slate-600"><i class="fa-solid fa-stopwatch mr-1"></i> 한 수 제한시간</label>
@@ -212,6 +217,16 @@
                     <button onclick="playButtonClick(); leaveOnline();" class="px-5 py-2 bg-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-300 transition text-xs sm:text-sm">
                         취소
                     </button>
+                </div>
+
+                <!-- My records (stored in this browser) -->
+                <div id="records-panel" class="mt-5 bg-white border border-slate-200 rounded-2xl p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="font-jua text-base text-slate-700"><i class="fa-solid fa-trophy text-amber-500 mr-1"></i> 내 전적 <span id="records-total" class="font-mono text-sm text-slate-500 ml-1"></span></p>
+                        <button onclick="playButtonClick(); clearRecords();" class="text-xs text-slate-400 hover:text-rose-600 underline underline-offset-2">기록 지우기</button>
+                    </div>
+                    <ul id="records-list" class="text-xs sm:text-sm text-slate-600 space-y-1"></ul>
+                    <p class="text-[11px] text-slate-400 mt-2">* 이 기기(브라우저)에만 저장됩니다.</p>
                 </div>
             </div>
         </div>
@@ -322,12 +337,12 @@
 
             <div class="flex justify-center items-center gap-4 mb-4">
                 <div class="flex-1 bg-blue-50 border border-blue-100 rounded-2xl py-3">
-                    <p class="text-xs text-blue-700 font-semibold mb-1">나</p>
+                    <p id="rps-my-label" class="text-xs text-blue-700 font-semibold mb-1 truncate px-1">나</p>
                     <p id="rps-my-pick" class="text-3xl">❔</p>
                 </div>
                 <span class="font-jua text-slate-300">VS</span>
                 <div class="flex-1 bg-purple-50 border border-purple-100 rounded-2xl py-3">
-                    <p class="text-xs text-purple-700 font-semibold mb-1">상대</p>
+                    <p id="rps-their-label" class="text-xs text-purple-700 font-semibold mb-1 truncate px-1">상대</p>
                     <p id="rps-their-pick" class="text-3xl">❔</p>
                 </div>
             </div>
@@ -377,13 +392,14 @@
                     <i class="fa-solid fa-sliders mr-1"></i> 줄 설정 바꿔서 다시 대결
                 </button>
                 <div id="rematch-settings" class="hidden bg-slate-50 border border-slate-200 rounded-2xl p-3 mb-2 text-left">
-                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">팝잇 줄 설정 (쉼표로 구분)</label>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">팝잇 줄 설정 (띄어쓰기로 구분)</label>
                     <div class="flex gap-2 mb-2">
-                        <input type="text" id="rematch-rows-input" class="flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-mono text-sm">
+                        <input type="text" id="rematch-rows-input" placeholder="예: 3 5 7" inputmode="numeric" oninput="onRowsInput('rematch-rows-input', 'rematch-rows-chips', false)" class="flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-mono text-base tracking-widest">
                         <button onclick="playButtonClick(); randomizeRematchRows();" class="px-3 py-2 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition text-sm">
                             <i class="fa-solid fa-dice"></i> 랜덤
                         </button>
                     </div>
+                    <div id="rematch-rows-chips" class="flex flex-wrap items-center gap-2 mb-2 min-h-[1.5rem]"></div>
                     <div class="flex items-center gap-2 mb-2 text-xs">
                         <label for="rematch-limit-select" class="font-semibold text-slate-600"><i class="fa-solid fa-stopwatch mr-1"></i> 제한시간</label>
                         <select id="rematch-limit-select" class="px-2 py-1.5 rounded-xl border border-slate-300 bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400">
@@ -524,6 +540,7 @@
         let myPlayerNum = 1;       // 온라인 대전에서 내가 플레이어 1인지 2인지
         let roomCode = '';
         let disconnectHandled = false;
+        let helloTimer = null;
         let remoteSelectedRow = null;
         let remoteSelectedIndices = [];
 
@@ -578,6 +595,70 @@
             if (info && gameActive) info.innerText = "⏰ 시간 초과! 자동으로 눌렀습니다. " + info.innerText;
         }
 
+        // ===== 이름 & 전적 (이 브라우저에 저장) =====
+        const NAME_KEY = 'popit_name';
+        const RECORDS_KEY = 'popit_records';
+        let myName = '';
+        let theirName = '상대';
+
+        function loadMyName() {
+            try { myName = (localStorage.getItem(NAME_KEY) || '').trim(); } catch (e) { myName = ''; }
+            const input = document.getElementById('player-name-input');
+            if (input) input.value = myName;
+        }
+        function saveMyName() {
+            const input = document.getElementById('player-name-input');
+            myName = (input ? input.value : '').trim().slice(0, 10);
+            try { localStorage.setItem(NAME_KEY, myName); } catch (e) {}
+        }
+        function displayName() { return myName || '나'; }
+
+        function loadRecords() {
+            try {
+                const r = JSON.parse(localStorage.getItem(RECORDS_KEY) || 'null');
+                if (r && Array.isArray(r.history)) return r;
+            } catch (e) {}
+            return { wins: 0, losses: 0, history: [] };
+        }
+        function saveRecords(r) { try { localStorage.setItem(RECORDS_KEY, JSON.stringify(r)); } catch (e) {} }
+
+        // reason: 'last'(마지막 버블) | 'resign'(포기)
+        function recordResult(iWon, reason) {
+            const r = loadRecords();
+            if (iWon) r.wins += 1; else r.losses += 1;
+            r.history.unshift({ d: new Date().toISOString(), opp: theirName, win: iWon, reason, rows: [...initialRowCounts] });
+            if (r.history.length > 50) r.history.length = 50;
+            saveRecords(r);
+            renderRecords();
+        }
+
+        function clearRecords() {
+            if (!confirm('이 기기에 저장된 전적을 모두 지울까요?')) return;
+            saveRecords({ wins: 0, losses: 0, history: [] });
+            renderRecords();
+        }
+
+        function renderRecords() {
+            const r = loadRecords();
+            const total = document.getElementById('records-total');
+            const list = document.getElementById('records-list');
+            if (!total || !list) return;
+            total.innerText = `${r.wins}승 ${r.losses}패`;
+            if (r.history.length === 0) {
+                list.innerHTML = '<li class="text-slate-400">아직 기록이 없습니다.</li>';
+                return;
+            }
+            list.innerHTML = r.history.slice(0, 10).map(h => {
+                const dt = new Date(h.d);
+                const when = `${dt.getMonth() + 1}/${dt.getDate()} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+                const badge = h.win
+                    ? '<span class="inline-block w-9 text-center rounded-md bg-emerald-100 text-emerald-700 font-bold">승</span>'
+                    : '<span class="inline-block w-9 text-center rounded-md bg-rose-100 text-rose-700 font-bold">패</span>';
+                const why = h.reason === 'resign' ? (h.win ? ' (상대 포기)' : ' (포기)') : '';
+                return `<li class="flex items-center gap-2"><span class="font-mono text-slate-400 w-24 shrink-0">${when}</span>${badge}<span class="truncate">vs ${h.opp || '상대'}${why}</span></li>`;
+            }).join('');
+        }
+
         function updateForfeitBtn() {
             const btn = document.getElementById('forfeit-btn');
             if (btn) btn.classList.toggle('hidden', !(isOnline() && gameActive));
@@ -587,7 +668,7 @@
         function isMyTurn() { return !isOnline() || currentPlayer === myPlayerNum; }
 
         function getPlayerName(num) {
-            if (isOnline()) return num === myPlayerNum ? '나' : '상대';
+            if (isOnline()) return num === myPlayerNum ? displayName() : theirName;
             if (num === 1) return '플레이어 1';
             return gameMode === 'ai' ? 'AI' : '플레이어 2';
         }
@@ -615,17 +696,41 @@
             if (mode !== 'online') leaveOnline();
         }
 
-        function applyCustomRows() {
-            const input = document.getElementById('custom-rows-input').value;
-            const parsed = input.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0).map(n => Math.min(n, MAX_PER_ROW));
-            
-            if (parsed.length < 2) {
-                alert('최소 2개 이상의 줄과 1개 이상의 버블 수를 입력하세요.');
-                return;
-            }
-            initialRowCounts = parsed;
-            document.getElementById('custom-rows-input').value = parsed.join(', ');
-            document.getElementById('rows-feedback').innerText = `적용됨: [${parsed.join(', ')}]`;
+        // 띄어쓰기(쉼표도 허용)로 구분된 숫자 문자열 → { rows, clipped }
+        function parseRowsText(text) {
+            const tokens = String(text).split(/[\s,]+/).filter(t => t.length > 0);
+            const rows = [], clipped = [];
+            tokens.forEach(t => {
+                const n = parseInt(t);
+                if (isNaN(n) || n <= 0) return;
+                if (n > MAX_PER_ROW) clipped.push(rows.length);
+                rows.push(Math.min(n, MAX_PER_ROW));
+            });
+            return { rows, clipped };
+        }
+
+        // 입력한 숫자를 줄별 칩으로 표시
+        function renderRowChips(containerId, parsed) {
+            const box = document.getElementById(containerId);
+            if (!box) return;
+            if (parsed.rows.length === 0) { box.innerHTML = '<span class="text-xs text-slate-400">숫자를 띄어쓰기로 입력하세요.</span>'; return; }
+            box.innerHTML = parsed.rows.map((n, i) => {
+                const c = rowColors[i % rowColors.length];
+                const warn = parsed.clipped.includes(i);
+                return `<span class="inline-flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full border ${c.unpopped} text-white text-xs font-bold shadow-sm ${warn ? 'ring-2 ring-rose-500' : ''}">
+                    <span class="w-5 h-5 rounded-full bg-white/90 ${c.text} flex items-center justify-center font-jua text-[11px]">${i + 1}</span>${n}개</span>`;
+            }).join('');
+        }
+
+        // 입력칸 변경 시: 칩 갱신, (applyToGame이면) 바로 게임 설정에 반영
+        function onRowsInput(inputId, chipsId, applyToGame) {
+            const parsed = parseRowsText(document.getElementById(inputId).value);
+            renderRowChips(chipsId, parsed);
+            const fb = document.getElementById(applyToGame ? 'rows-feedback' : 'rematch-rows-error');
+            if (parsed.clipped.length > 0) fb.innerText = `한 줄 최대 ${MAX_PER_ROW}개라서 ${MAX_PER_ROW}개로 줄였습니다.`;
+            else if (parsed.rows.length < 2) fb.innerText = parsed.rows.length === 0 ? '' : '줄을 2개 이상 입력하세요.';
+            else fb.innerText = '';
+            if (applyToGame && parsed.rows.length >= 2) initialRowCounts = parsed.rows;
         }
 
         // 줄 2~5개, 각 줄 버블 2~8개로 무작위 설정
@@ -634,8 +739,8 @@
             const rows = [];
             for (let i = 0; i < rowCount; i++) rows.push(2 + Math.floor(Math.random() * 7));
             initialRowCounts = rows;
-            document.getElementById('custom-rows-input').value = rows.join(', ');
-            document.getElementById('rows-feedback').innerText = `랜덤 적용됨: [${rows.join(', ')}]`;
+            document.getElementById('custom-rows-input').value = rows.join(' ');
+            onRowsInput('custom-rows-input', 'rows-chips', true);
         }
 
         function startGame(isFirst) {
@@ -655,8 +760,8 @@
             const p1Badge = document.getElementById('player1-badge');
             const p2Badge = document.getElementById('player2-badge');
             if (isOnline()) {
-                const meHtml = `<i class="fa-solid fa-user"></i> 나`;
-                const otherHtml = `<i class="fa-solid fa-user-astronaut"></i> 상대`;
+                const meHtml = `<i class="fa-solid fa-user"></i> ${displayName()}`;
+                const otherHtml = `<i class="fa-solid fa-user-astronaut"></i> ${theirName}`;
                 p1Badge.innerHTML = myPlayerNum === 1 ? meHtml : otherHtml;
                 p2Badge.innerHTML = myPlayerNum === 2 ? meHtml : otherHtml;
             } else {
@@ -859,7 +964,7 @@
 
             const name = getPlayerName(currentPlayer);
             const turnText = isOnline()
-                ? (isMyTurn() ? '내 차례!' : '상대의 차례')
+                ? (isMyTurn() ? '내 차례!' : `${theirName}의 차례`)
                 : `${name}의 차례`;
 
             if (currentPlayer === 1) {
@@ -959,7 +1064,8 @@
             stopTurnTimer();
             updateForfeitBtn();
             sendData({ type: 'resign' });
-            showOnlineResult(false, '포기했습니다. 상대의 승리입니다.', '🏳️');
+            recordResult(false, 'resign');
+            showOnlineResult(false, `포기했습니다. ${theirName}의 승리입니다.`, '🏳️');
         }
 
         function showOnlineResult(iWon, desc, icon) {
@@ -968,7 +1074,7 @@
             const winnerDesc = document.getElementById('winner-desc');
             const winnerIcon = document.getElementById('winner-icon');
 
-            winnerTitle.innerText = iWon ? "내가 승리!" : "상대 승리...";
+            winnerTitle.innerText = iWon ? `${displayName()} 승리!` : `${theirName} 승리...`;
             winnerIcon.innerText = icon || (iWon ? "🏆" : "😢");
             winnerIcon.className = iWon
                 ? "w-20 h-20 mx-auto mb-4 rounded-full bg-amber-100 text-amber-500 flex items-center justify-center text-4xl shadow-inner"
@@ -988,7 +1094,8 @@
 
             if (isOnline()) {
                 const iWon = currentPlayer === myPlayerNum;
-                showOnlineResult(iWon, iWon ? "마지막 버블을 눌러 승리했습니다!" : "상대가 마지막 버블을 눌렀습니다.");
+                recordResult(iWon, 'last');
+                showOnlineResult(iWon, iWon ? "마지막 버블을 눌러 승리했습니다!" : `${theirName}이(가) 마지막 버블을 눌렀습니다.`);
                 return;
             } else {
                 winnerTitle.innerText = `${getPlayerName(currentPlayer)} 승리!`;
@@ -1018,8 +1125,8 @@
             mainBtn.innerText = "새 게임 시작하기";
 
             if (kind === 'host') {
-                document.getElementById('rematch-rows-input').value = initialRowCounts.join(', ');
-                document.getElementById('rematch-rows-error').innerText = '';
+                document.getElementById('rematch-rows-input').value = initialRowCounts.join(' ');
+                onRowsInput('rematch-rows-input', 'rematch-rows-chips', false);
                 document.getElementById('rematch-limit-select').value = String(turnLimit);
             }
         }
@@ -1032,13 +1139,12 @@
             const rowCount = 2 + Math.floor(Math.random() * 4);
             const rows = [];
             for (let i = 0; i < rowCount; i++) rows.push(2 + Math.floor(Math.random() * 7));
-            document.getElementById('rematch-rows-input').value = rows.join(', ');
-            document.getElementById('rematch-rows-error').innerText = '';
+            document.getElementById('rematch-rows-input').value = rows.join(' ');
+            onRowsInput('rematch-rows-input', 'rematch-rows-chips', false);
         }
 
         function startRematchWithRows() {
-            const input = document.getElementById('rematch-rows-input').value;
-            const parsed = input.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0).map(n => Math.min(n, MAX_PER_ROW));
+            const parsed = parseRowsText(document.getElementById('rematch-rows-input').value).rows;
             if (parsed.length < 2) {
                 document.getElementById('rematch-rows-error').innerText = '줄 2개 이상, 각 줄 1개 이상으로 입력하세요.';
                 return;
@@ -1046,8 +1152,8 @@
             initialRowCounts = parsed;
             turnLimit = parseInt(document.getElementById('rematch-limit-select').value) || 0;
             // 첫 화면의 설정칸에도 반영 (다음 방에서도 유지)
-            document.getElementById('custom-rows-input').value = parsed.join(', ');
-            document.getElementById('rows-feedback').innerText = `적용됨: [${parsed.join(', ')}]`;
+            document.getElementById('custom-rows-input').value = parsed.join(' ');
+            onRowsInput('custom-rows-input', 'rows-chips', true);
             document.getElementById('turn-limit-select').value = String(turnLimit);
             requestRematch();
         }
@@ -1133,6 +1239,8 @@
 
         function leaveOnline() {
             cleanupPeer();
+            if (helloTimer) { clearTimeout(helloTimer); helloTimer = null; }
+            theirName = '상대';
             isHost = false;
             roomCode = '';
             const lobby = document.getElementById('online-lobby');
@@ -1227,8 +1335,10 @@
             c.on('open', () => {
                 if (conn !== c) return;
                 if (isHost) {
-                    startOnlineGame();
+                    // 참가자 이름(hello)을 먼저 받은 뒤 시작 — 못 받아도 1초 후 시작
+                    helloTimer = setTimeout(() => { helloTimer = null; if (conn === c) startOnlineGame(); }, 1000);
                 } else {
+                    sendData({ type: 'hello', name: displayName() });
                     setOnlineStatus('연결되었습니다! 곧 게임이 시작됩니다...', false);
                 }
             });
@@ -1240,7 +1350,7 @@
 
         // 방장: 줄 설정을 보내고 가위바위보 단계로 진입
         function startOnlineGame() {
-            sendData({ type: 'init', rows: initialRowCounts, turnLimit });
+            sendData({ type: 'init', rows: initialRowCounts, turnLimit, name: displayName() });
             beginOnlineRps(initialRowCounts);
         }
 
@@ -1284,8 +1394,10 @@
             document.getElementById('setup-panel').classList.add('hidden');
             document.getElementById('game-panel').classList.remove('hidden');
 
-            document.getElementById('player1-badge').innerHTML = `<i class="fa-solid fa-user"></i> 나`;
-            document.getElementById('player2-badge').innerHTML = `<i class="fa-solid fa-user-astronaut"></i> 상대`;
+            document.getElementById('player1-badge').innerHTML = `<i class="fa-solid fa-user"></i> ${displayName()}`;
+            document.getElementById('player2-badge').innerHTML = `<i class="fa-solid fa-user-astronaut"></i> ${theirName}`;
+            document.getElementById('rps-my-label').innerText = displayName();
+            document.getElementById('rps-their-label').innerText = theirName;
             const ti = document.getElementById('turn-indicator');
             ti.innerText = '가위바위보 중...';
             ti.className = "px-5 py-2 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-white font-jua text-lg sm:text-xl shadow-md text-center w-full sm:w-auto";
@@ -1404,8 +1516,14 @@
             if (!data || typeof data !== 'object') return;
 
             switch (data.type) {
+                case 'hello': {
+                    theirName = String(data.name || '상대').slice(0, 10) || '상대';
+                    if (isHost && helloTimer) { clearTimeout(helloTimer); helloTimer = null; startOnlineGame(); }
+                    break;
+                }
                 case 'init': {
                     if (!Array.isArray(data.rows) || data.rows.length < 2) return;
+                    theirName = String(data.name || '상대').slice(0, 10) || '상대';
                     turnLimit = (typeof data.turnLimit === 'number') ? data.turnLimit : 10;
                     beginOnlineRps(data.rows.map(n => Math.max(1, Math.min(parseInt(n) || 1, MAX_PER_ROW))));
                     break;
@@ -1415,7 +1533,8 @@
                     gameActive = false;
                     stopTurnTimer();
                     updateForfeitBtn();
-                    showOnlineResult(true, '상대가 포기했습니다!', '🏳️');
+                    recordResult(true, 'resign');
+                    showOnlineResult(true, `${theirName}이(가) 포기했습니다!`, '🏳️');
                     break;
                 }
                 case 'rps': {
@@ -1532,6 +1651,9 @@
 
         // 링크(?room=XXXXXX)로 들어온 경우 자동 참가
         window.addEventListener('DOMContentLoaded', () => {
+            loadMyName();
+            renderRecords();
+            onRowsInput('custom-rows-input', 'rows-chips', true);
             const params = new URLSearchParams(location.search);
             const room = (params.get('room') || '').trim().toUpperCase();
             if (room.length === 6) {
