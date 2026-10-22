@@ -22,6 +22,7 @@
 
         /* Pop-it Bubble Responsive Styling */
         .bubble {
+            touch-action: none; /* 드래그 선택 시 화면 스크롤 방지 */
             transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.2s;
             box-shadow: inset -3px -3px 6px rgba(0,0,0,0.25), inset 3px 3px 6px rgba(255,255,255,0.6), 0 4px 6px rgba(0,0,0,0.15);
             flex-shrink: 0;
@@ -127,7 +128,7 @@
                         <i class="fa-solid fa-dice"></i> 랜덤
                     </button>
                 </div>
-                <p class="text-xs text-slate-400 mt-1.5">* 쉼표(,)로 구분하여 2개 이상의 줄 버블 수를 설정하세요. [랜덤]은 줄 2~5개, 각 줄 2~8개로 섞습니다. 온라인 대전에서는 방장의 설정이 적용됩니다.</p>
+                <p class="text-xs text-slate-400 mt-1.5">* 쉼표(,)로 구분하여 2개 이상의 줄 버블 수를 설정하세요. 한 줄 최대 20개. [랜덤]은 줄 2~5개, 각 줄 2~8개로 섞습니다. 온라인 대전에서는 방장의 설정이 적용됩니다.</p>
                 <p id="rows-feedback" class="text-xs text-indigo-600 font-semibold mt-1 h-4"></p>
             </div>
 
@@ -153,6 +154,19 @@
 
             <!-- Online Section -->
             <div id="online-section" class="hidden border-t pt-6 border-slate-100">
+                <!-- Turn time limit (host setting) -->
+                <div class="flex items-center justify-center gap-2 mb-4 text-xs sm:text-sm">
+                    <label for="turn-limit-select" class="font-semibold text-slate-600"><i class="fa-solid fa-stopwatch mr-1"></i> 한 수 제한시간</label>
+                    <select id="turn-limit-select" class="px-3 py-1.5 rounded-xl border border-slate-300 bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                        <option value="5">5초</option>
+                        <option value="10" selected>10초</option>
+                        <option value="15">15초</option>
+                        <option value="20">20초</option>
+                        <option value="30">30초</option>
+                        <option value="0">제한 없음</option>
+                    </select>
+                    <span class="text-slate-400">(방장 설정 적용 · 시간이 끝나면 자동으로 1개 눌림)</span>
+                </div>
                 <!-- Lobby: create / join -->
                 <div id="online-lobby" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl text-center flex flex-col justify-between gap-3">
@@ -217,11 +231,19 @@
                     </span>
                 </div>
 
-                <div id="turn-indicator" class="px-5 py-2 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-jua text-lg sm:text-xl shadow-md glow-turn text-center w-full sm:w-auto">
-                    플레이어 1의 차례
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <div id="turn-indicator" class="px-5 py-2 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-jua text-lg sm:text-xl shadow-md glow-turn text-center flex-1 sm:flex-none">
+                        플레이어 1의 차례
+                    </div>
+                    <div id="turn-timer" class="hidden px-3 py-2 rounded-2xl bg-slate-800 text-white font-mono font-bold text-base sm:text-lg shadow-md min-w-[3.5rem] text-center">
+                        10
+                    </div>
                 </div>
 
                 <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button id="forfeit-btn" onclick="playButtonClick(); forfeitGame();" class="hidden px-3 py-1.5 text-xs bg-rose-50 text-rose-600 border border-rose-300 rounded-lg hover:bg-rose-100 transition flex items-center gap-1 font-semibold">
+                        <i class="fa-solid fa-flag"></i> 포기
+                    </button>
                     <button onclick="playButtonClick(); resetToSetup();" class="px-3 py-1.5 text-xs bg-slate-100 text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-200 transition flex items-center gap-1 font-semibold">
                         <i class="fa-solid fa-rotate-left"></i> 새 게임
                     </button>
@@ -279,6 +301,8 @@
                         <li>친구가 코드를 입력해 [참가]하면 가위바위보 화면이 뜨고, 이긴 사람이 선공/후공을 고릅니다. (비기면 다시)</li>
                         <li>팝잇 줄 설정은 방장의 설정을 따릅니다.</li>
                         <li>상대가 고르는 중인 버블은 주황 점선으로 실시간 표시됩니다.</li>
+                        <li>한 수 제한시간(기본 10초)이 끝나면 고르던 버블이 확정되고, 고른 게 없으면 무작위로 1개가 눌립니다.</li>
+                        <li>[포기]를 누르면 상대의 승리로 끝나며, 방은 유지되어 바로 다시 대결할 수 있습니다.</li>
                         <li>게임이 끝나면 방장이 [다시 대결]을 눌러 같은 상대와 바로 다시 할 수 있습니다.</li>
                     </ol>
                 </div>
@@ -307,6 +331,8 @@
                     <p id="rps-their-pick" class="text-3xl">❔</p>
                 </div>
             </div>
+
+            <div id="rps-rows-preview" class="bg-slate-50 border border-slate-200 rounded-2xl p-3 mb-4 text-left text-xs sm:text-sm"></div>
 
             <div id="rps-buttons" class="flex justify-center gap-2 sm:gap-3 mb-4">
                 <button onclick="playButtonClick(); onlineRps('scissors');" class="rps-btn px-4 py-2.5 sm:px-5 sm:py-3 bg-pink-50 hover:bg-pink-100 text-pink-600 border border-pink-200 rounded-2xl font-bold transition text-base sm:text-lg shadow-sm disabled:opacity-40 disabled:cursor-not-allowed">
@@ -357,6 +383,17 @@
                         <button onclick="playButtonClick(); randomizeRematchRows();" class="px-3 py-2 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition text-sm">
                             <i class="fa-solid fa-dice"></i> 랜덤
                         </button>
+                    </div>
+                    <div class="flex items-center gap-2 mb-2 text-xs">
+                        <label for="rematch-limit-select" class="font-semibold text-slate-600"><i class="fa-solid fa-stopwatch mr-1"></i> 제한시간</label>
+                        <select id="rematch-limit-select" class="px-2 py-1.5 rounded-xl border border-slate-300 bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                            <option value="5">5초</option>
+                            <option value="10">10초</option>
+                            <option value="15">15초</option>
+                            <option value="20">20초</option>
+                            <option value="30">30초</option>
+                            <option value="0">제한 없음</option>
+                        </select>
                     </div>
                     <button onclick="playButtonClick(); startRematchWithRows();" class="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition text-sm">
                         <i class="fa-solid fa-play mr-1"></i> 이 설정으로 시작
@@ -490,6 +527,62 @@
         let remoteSelectedRow = null;
         let remoteSelectedIndices = [];
 
+        // ===== 온라인 제한시간 =====
+        let turnLimit = 10;        // 초, 0이면 제한 없음 (방장 설정)
+        let turnTimer = null;
+        let turnRemaining = 0;
+
+        function stopTurnTimer() {
+            if (turnTimer) { clearInterval(turnTimer); turnTimer = null; }
+            const el = document.getElementById('turn-timer');
+            if (el) el.classList.add('hidden');
+        }
+
+        function renderTurnTimer() {
+            const el = document.getElementById('turn-timer');
+            if (!el) return;
+            el.classList.remove('hidden');
+            el.innerText = turnRemaining;
+            el.className = turnRemaining <= 3
+                ? "px-3 py-2 rounded-2xl bg-rose-600 text-white font-mono font-bold text-base sm:text-lg shadow-md min-w-[3.5rem] text-center animate-pulse"
+                : "px-3 py-2 rounded-2xl bg-slate-800 text-white font-mono font-bold text-base sm:text-lg shadow-md min-w-[3.5rem] text-center";
+        }
+
+        function startTurnTimer() {
+            stopTurnTimer();
+            if (!isOnline() || !gameActive || turnLimit <= 0) return;
+            turnRemaining = turnLimit;
+            renderTurnTimer();
+            turnTimer = setInterval(() => {
+                turnRemaining -= 1;
+                renderTurnTimer();
+                if (turnRemaining <= 0) {
+                    stopTurnTimer();
+                    if (isOnline() && gameActive && isMyTurn()) autoMoveOnTimeout();
+                }
+            }, 1000);
+        }
+
+        // 시간 초과: 고르던 버블이 있으면 확정, 없으면 무작위 1개
+        function autoMoveOnTimeout() {
+            if (selectedRowIndex === null || tempSelectedIndices.length === 0) {
+                const rows = currentRows.map((c, i) => ({ c, i })).filter(r => r.c > 0);
+                if (rows.length === 0) return;
+                const r = rows[Math.floor(Math.random() * rows.length)];
+                selectedRowIndex = r.i;
+                tempSelectedIndices = [Math.floor(Math.random() * r.c)];
+                playPopSound(true, (r.i % 6) * 45);
+            }
+            confirmTurn();
+            const info = document.getElementById('selection-info');
+            if (info && gameActive) info.innerText = "⏰ 시간 초과! 자동으로 눌렀습니다. " + info.innerText;
+        }
+
+        function updateForfeitBtn() {
+            const btn = document.getElementById('forfeit-btn');
+            if (btn) btn.classList.toggle('hidden', !(isOnline() && gameActive));
+        }
+
         function isOnline() { return gameMode === 'online'; }
         function isMyTurn() { return !isOnline() || currentPlayer === myPlayerNum; }
 
@@ -524,7 +617,7 @@
 
         function applyCustomRows() {
             const input = document.getElementById('custom-rows-input').value;
-            const parsed = input.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0);
+            const parsed = input.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0).map(n => Math.min(n, MAX_PER_ROW));
             
             if (parsed.length < 2) {
                 alert('최소 2개 이상의 줄과 1개 이상의 버블 수를 입력하세요.');
@@ -621,8 +714,18 @@
 
                     bubble.className = classes;
                     bubble.disabled = isPopped || lockBoard;
+                    bubble.dataset.row = rowIndex;
+                    bubble.dataset.idx = i;
 
-                    bubble.onclick = () => handleBubbleClick(rowIndex, i);
+                    bubble.onpointerdown = (e) => {
+                        if (bubble.disabled) return;
+                        e.preventDefault();
+                        // 터치 시 원래 버블에 잡히는 포인터 캡처를 풀어 드래그가 다른 버블로 이어지게 함
+                        try { bubble.releasePointerCapture(e.pointerId); } catch (_) {}
+                        handleBubbleClick(rowIndex, i);
+                        // 드래그 시작: 첫 버블이 선택됐으면 '추가' 모드, 해제됐으면 '해제' 모드
+                        dragState = { row: rowIndex, mode: tempSelectedIndices.includes(i) ? 'add' : 'remove' };
+                    };
 
                     bubblesContainer.appendChild(bubble);
                 }
@@ -639,6 +742,45 @@
             });
 
         }
+
+        const MAX_PER_ROW = 20; // 한 줄 최대 버블 수
+        let dragState = null;   // { row, mode: 'add' | 'remove' }
+
+        // 드래그로 같은 줄의 버블을 연속 선택/해제
+        function handleDragOver(e) {
+            if (!dragState || !gameActive) return;
+            const el = document.elementFromPoint(e.clientX, e.clientY);
+            const bubble = el && el.closest ? el.closest('.bubble') : null;
+            if (!bubble || bubble.disabled) return;
+            const row = parseInt(bubble.dataset.row), idx = parseInt(bubble.dataset.idx);
+            if (row !== dragState.row) return;
+
+            const has = tempSelectedIndices.includes(idx);
+            if (dragState.mode === 'add' && !has) {
+                if (selectedRowIndex !== row) { tempSelectedIndices = []; }
+                selectedRowIndex = row;
+                tempSelectedIndices.push(idx);
+                playPopSound(true, (row % 6) * 45);
+            } else if (dragState.mode === 'remove' && has) {
+                tempSelectedIndices.splice(tempSelectedIndices.indexOf(idx), 1);
+                if (tempSelectedIndices.length === 0) selectedRowIndex = null;
+                playPopSound(false, (row % 6) * 45);
+            } else {
+                return;
+            }
+            document.getElementById('confirm-btn').disabled = tempSelectedIndices.length === 0;
+            document.getElementById('cancel-btn').disabled = tempSelectedIndices.length === 0;
+            sendPreview();
+            renderBoard();
+        }
+
+        function endDrag() { dragState = null; }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            window.addEventListener('pointermove', handleDragOver);
+            window.addEventListener('pointerup', endDrag);
+            window.addEventListener('pointercancel', endDrag);
+        });
 
         function handleBubbleClick(rowIndex, bubbleIndex) {
             if (!gameActive) return;
@@ -739,6 +881,9 @@
             } else if (info && !isAiTurn) {
                 info.innerText = "한 줄에서 원하는 만큼 버블을 터뜨린 뒤 [선택 완료]를 누르세요.";
             }
+
+            if (isOnline() && gameActive) startTurnTimer(); else stopTurnTimer();
+            updateForfeitBtn();
         }
 
         function triggerAiTurn() {
@@ -798,10 +943,41 @@
         function checkGameOver() {
             if (currentRows.reduce((a, b) => a + b, 0) === 0) {
                 gameActive = false;
+                stopTurnTimer();
+                updateForfeitBtn();
                 showGameOverModal();
                 return true;
             }
             return false;
+        }
+
+        // ===== 포기 (온라인 전용) =====
+        function forfeitGame() {
+            if (!isOnline() || !gameActive) return;
+            if (!confirm('정말 포기할까요? 상대의 승리로 기록됩니다.')) return;
+            gameActive = false;
+            stopTurnTimer();
+            updateForfeitBtn();
+            sendData({ type: 'resign' });
+            showOnlineResult(false, '포기했습니다. 상대의 승리입니다.', '🏳️');
+        }
+
+        function showOnlineResult(iWon, desc, icon) {
+            const modal = document.getElementById('gameover-modal');
+            const winnerTitle = document.getElementById('winner-title');
+            const winnerDesc = document.getElementById('winner-desc');
+            const winnerIcon = document.getElementById('winner-icon');
+
+            winnerTitle.innerText = iWon ? "내가 승리!" : "상대 승리...";
+            winnerIcon.innerText = icon || (iWon ? "🏆" : "😢");
+            winnerIcon.className = iWon
+                ? "w-20 h-20 mx-auto mb-4 rounded-full bg-amber-100 text-amber-500 flex items-center justify-center text-4xl shadow-inner"
+                : "w-20 h-20 mx-auto mb-4 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-4xl shadow-inner";
+            winnerDesc.innerText = desc;
+            setGameOverButtons(isHost ? 'host' : 'guest');
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
         }
 
         function showGameOverModal() {
@@ -812,13 +988,8 @@
 
             if (isOnline()) {
                 const iWon = currentPlayer === myPlayerNum;
-                winnerTitle.innerText = iWon ? "내가 승리!" : "상대 승리...";
-                winnerIcon.innerText = iWon ? "🏆" : "😢";
-                winnerIcon.className = iWon
-                    ? "w-20 h-20 mx-auto mb-4 rounded-full bg-amber-100 text-amber-500 flex items-center justify-center text-4xl shadow-inner"
-                    : "w-20 h-20 mx-auto mb-4 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-4xl shadow-inner";
-                winnerDesc.innerText = iWon ? "마지막 버블을 눌러 승리했습니다!" : "상대가 마지막 버블을 눌렀습니다.";
-                setGameOverButtons(isHost ? 'host' : 'guest');
+                showOnlineResult(iWon, iWon ? "마지막 버블을 눌러 승리했습니다!" : "상대가 마지막 버블을 눌렀습니다.");
+                return;
             } else {
                 winnerTitle.innerText = `${getPlayerName(currentPlayer)} 승리!`;
                 winnerDesc.innerText = "마지막 버블을 눌러 게임에서 최종 승리하였습니다!";
@@ -849,6 +1020,7 @@
             if (kind === 'host') {
                 document.getElementById('rematch-rows-input').value = initialRowCounts.join(', ');
                 document.getElementById('rematch-rows-error').innerText = '';
+                document.getElementById('rematch-limit-select').value = String(turnLimit);
             }
         }
 
@@ -866,15 +1038,17 @@
 
         function startRematchWithRows() {
             const input = document.getElementById('rematch-rows-input').value;
-            const parsed = input.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0);
+            const parsed = input.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0).map(n => Math.min(n, MAX_PER_ROW));
             if (parsed.length < 2) {
                 document.getElementById('rematch-rows-error').innerText = '줄 2개 이상, 각 줄 1개 이상으로 입력하세요.';
                 return;
             }
             initialRowCounts = parsed;
+            turnLimit = parseInt(document.getElementById('rematch-limit-select').value) || 0;
             // 첫 화면의 설정칸에도 반영 (다음 방에서도 유지)
             document.getElementById('custom-rows-input').value = parsed.join(', ');
             document.getElementById('rows-feedback').innerText = `적용됨: [${parsed.join(', ')}]`;
+            document.getElementById('turn-limit-select').value = String(turnLimit);
             requestRematch();
         }
 
@@ -895,6 +1069,8 @@
             remoteSelectedIndices = [];
             gameActive = false;
             isAiTurn = false;
+            stopTurnTimer();
+            updateForfeitBtn();
             if (isOnline()) {
                 sendData({ type: 'leave' });
                 leaveOnline();
@@ -980,6 +1156,7 @@
             if (!peerAvailable()) return;
             cleanupPeer();
             isHost = true;
+            turnLimit = parseInt(document.getElementById('turn-limit-select').value) || 0;
             roomCode = generateRoomCode();
             showOnlineWaiting('방을 만드는 중...', false);
 
@@ -1063,8 +1240,25 @@
 
         // 방장: 줄 설정을 보내고 가위바위보 단계로 진입
         function startOnlineGame() {
-            sendData({ type: 'init', rows: initialRowCounts });
+            sendData({ type: 'init', rows: initialRowCounts, turnLimit });
             beginOnlineRps(initialRowCounts);
+        }
+
+        // 가위바위보 창에 이번 판 줄 설정·제한시간 표시
+        function renderRpsRowsPreview() {
+            const box = document.getElementById('rps-rows-preview');
+            if (!box) return;
+            const limitText = turnLimit > 0 ? `${turnLimit}초` : '없음';
+            let html = `<p class="font-semibold text-slate-600 mb-2">이번 판 팝잇 줄 · 한 수 제한시간 <span class="text-indigo-600">${limitText}</span></p>`;
+            initialRowCounts.forEach((count, i) => {
+                const color = rowColors[i % rowColors.length].text;
+                html += `<div class="flex items-center gap-2 mb-1">
+                    <span class="font-jua w-12 ${color}">${i + 1}번줄</span>
+                    <span class="${color} tracking-tight">${'●'.repeat(count)}</span>
+                    <span class="font-mono text-slate-500">${count}개</span>
+                </div>`;
+            });
+            box.innerHTML = html;
         }
 
         // ===== 온라인 가위바위보 =====
@@ -1098,7 +1292,10 @@
             document.getElementById('selection-info').innerText = "가위바위보로 순서를 정하는 중입니다.";
             document.getElementById('confirm-btn').disabled = true;
             document.getElementById('cancel-btn').disabled = true;
+            stopTurnTimer();
+            updateForfeitBtn();
             renderBoard();
+            renderRpsRowsPreview();
 
             rpsRound = 1;
             for (const k in pendingRps) delete pendingRps[k];
@@ -1209,7 +1406,16 @@
             switch (data.type) {
                 case 'init': {
                     if (!Array.isArray(data.rows) || data.rows.length < 2) return;
-                    beginOnlineRps(data.rows);
+                    turnLimit = (typeof data.turnLimit === 'number') ? data.turnLimit : 10;
+                    beginOnlineRps(data.rows.map(n => Math.max(1, Math.min(parseInt(n) || 1, MAX_PER_ROW))));
+                    break;
+                }
+                case 'resign': {
+                    if (!gameActive) return;
+                    gameActive = false;
+                    stopTurnTimer();
+                    updateForfeitBtn();
+                    showOnlineResult(true, '상대가 포기했습니다!', '🏳️');
                     break;
                 }
                 case 'rps': {
@@ -1263,6 +1469,8 @@
             closeRpsModal();
             const wasInGame = gameActive || !document.getElementById('game-panel').classList.contains('hidden');
             gameActive = false;
+            stopTurnTimer();
+            updateForfeitBtn();
             cleanupPeer();
 
             if (wasInGame) {
