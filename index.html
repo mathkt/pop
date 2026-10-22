@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;600;800&display=swap');
         
@@ -207,6 +208,9 @@
                             <input type="text" id="join-code-input" maxlength="6" placeholder="방 코드" autocapitalize="characters" class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-400 font-mono text-center text-base uppercase room-code" onkeydown="if(event.key==='Enter'){playButtonClick(); joinRoom();}">
                             <button onclick="playButtonClick(); joinRoom();" class="px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-xl shadow hover:bg-emerald-700 transition text-sm sm:text-base">참가</button>
                         </div>
+                        <button onclick="playButtonClick(); openQrScanner();" class="w-full py-2 bg-white text-emerald-700 border border-emerald-300 font-semibold rounded-xl hover:bg-emerald-100 transition text-xs sm:text-sm flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-camera"></i> 카메라로 QR 찍어서 참가
+                        </button>
                     </div>
                 </div>
 
@@ -337,7 +341,7 @@
                         <i class="fa-solid fa-globe"></i> 온라인 대전
                     </h4>
                     <ol class="list-decimal list-inside space-y-1.5 text-emerald-950 font-medium">
-                        <li>한 사람이 [방 만들기]를 눌러 방 코드를 받고, 친구에게 코드나 링크를 보냅니다.</li>
+                        <li>한 사람이 [방 만들기]를 눌러 방 코드를 받고, 친구에게 코드·링크·QR로 알려줍니다. 참가자는 코드 입력, 링크 열기, 또는 [카메라로 QR 찍어서 참가] 중 편한 방법으로 들어옵니다.</li>
                         <li>친구가 코드를 입력해 [참가]하면 가위바위보 화면이 뜨고, 이긴 사람이 선공/후공을 고릅니다. (비기면 다시)</li>
                         <li>팝잇 줄 설정은 방장의 설정을 따릅니다.</li>
                         <li>상대가 고르는 중인 버블은 주황 점선으로 실시간 표시됩니다.</li>
@@ -351,6 +355,19 @@
             <button onclick="closeRulesModal()" class="w-full mt-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition text-sm sm:text-base">
                 확인 및 닫기
             </button>
+        </div>
+    </div>
+
+    <!-- QR Scanner Modal -->
+    <div id="qr-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-5 text-center shadow-2xl">
+            <h3 class="text-lg sm:text-xl font-jua text-slate-800 mb-2">QR 코드를 비춰 주세요</h3>
+            <div class="relative rounded-2xl overflow-hidden bg-black aspect-square mb-3">
+                <video id="qr-video" playsinline muted class="w-full h-full object-cover"></video>
+                <div class="absolute inset-8 border-4 border-emerald-400/80 rounded-2xl pointer-events-none"></div>
+            </div>
+            <p id="qr-status" class="text-xs sm:text-sm font-semibold text-slate-600 min-h-[1.25rem] mb-3">카메라를 켜는 중...</p>
+            <button onclick="closeQrScanner()" class="w-full py-2.5 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300 transition text-sm">닫기</button>
         </div>
     </div>
 
@@ -1774,6 +1791,82 @@
             try {
                 new QRCode(box, { text: getRoomLink(), width: 132, height: 132, correctLevel: QRCode.CorrectLevel.M });
             } catch (e) { box.classList.add('hidden'); }
+        }
+
+        // ===== QR 찍어서 참가 =====
+        let qrStream = null;
+        let qrRaf = null;
+
+        async function openQrScanner() {
+            const modal = document.getElementById('qr-modal');
+            const status = document.getElementById('qr-status');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            status.innerText = '카메라를 켜는 중...';
+
+            if (typeof jsQR === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                status.innerText = '이 브라우저에서는 카메라를 쓸 수 없어요. 폰 기본 카메라로 QR을 찍어 주세요.';
+                return;
+            }
+            try {
+                qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+            } catch (e) {
+                status.innerText = '카메라 권한이 필요해요. 허용 후 다시 눌러 주세요. (폰 기본 카메라로 찍어도 됩니다)';
+                return;
+            }
+            const video = document.getElementById('qr-video');
+            video.srcObject = qrStream;
+            await video.play().catch(() => {});
+            status.innerText = '방 화면의 QR 코드를 네모 안에 맞춰 주세요.';
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            const scan = () => {
+                if (!qrStream) return;
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+                    if (code && code.data) {
+                        const roomCodeFound = extractRoomCode(code.data);
+                        if (roomCodeFound) {
+                            closeQrScanner();
+                            setGameMode('online');
+                            document.getElementById('join-code-input').value = roomCodeFound;
+                            playButtonClick();
+                            joinRoom();
+                            return;
+                        }
+                        status.innerText = '이 QR은 팝잇 방 코드가 아니에요. 다른 QR을 비춰 주세요.';
+                    }
+                }
+                qrRaf = requestAnimationFrame(scan);
+            };
+            qrRaf = requestAnimationFrame(scan);
+        }
+
+        function closeQrScanner() {
+            if (qrRaf) { cancelAnimationFrame(qrRaf); qrRaf = null; }
+            if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
+            const video = document.getElementById('qr-video');
+            if (video) video.srcObject = null;
+            const modal = document.getElementById('qr-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // QR 내용(링크 또는 코드)에서 6자리 방 코드 추출
+        function extractRoomCode(text) {
+            const t = String(text).trim();
+            try {
+                const u = new URL(t);
+                const r = (u.searchParams.get('room') || '').toUpperCase();
+                if (r.length === 6) return r;
+            } catch (e) {}
+            const m = t.toUpperCase().match(/\b[A-Z2-9]{6}\b/);
+            return m ? m[0] : null;
         }
 
         function getRoomLink() {
