@@ -342,7 +342,7 @@
                     </h4>
                     <ol class="list-decimal list-inside space-y-1.5 text-emerald-950 font-medium">
                         <li>한 사람이 [방 만들기]를 눌러 방 코드를 받고, 친구에게 코드·링크·QR로 알려줍니다. 참가자는 코드 입력, 링크 열기, 또는 [카메라로 QR 찍어서 참가] 중 편한 방법으로 들어옵니다.</li>
-                        <li>친구가 코드를 입력해 [참가]하면 가위바위보 화면이 뜨고, 이긴 사람이 선공/후공을 고릅니다. (비기면 다시)</li>
+                        <li>친구가 들어오면 가위바위보 화면이 뜹니다. 5초 안에 내지 않으면 진 것으로, 이긴 사람은 5초 안에 선공/후공을 고르며 안 고르면 후공이 됩니다. (비기면 다시)</li>
                         <li>팝잇 줄 설정은 방장의 설정을 따릅니다.</li>
                         <li>상대가 고르는 중인 버블은 주황 점선으로 실시간 표시됩니다.</li>
                         <li>한 수 제한시간(기본 10초)이 끝나면 고르던 버블이 확정되고, 고른 게 없으면 무작위로 1개가 눌립니다.</li>
@@ -375,7 +375,8 @@
     <div id="online-rps-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
         <div class="bg-white rounded-3xl max-w-md w-full p-6 text-center shadow-2xl">
             <h3 class="text-xl sm:text-2xl font-jua text-slate-800 mb-1">가위바위보로 순서 정하기</h3>
-            <p class="text-xs sm:text-sm text-slate-500 mb-4">이긴 사람이 선공/후공을 고릅니다.</p>
+            <p class="text-xs sm:text-sm text-slate-500 mb-2">이긴 사람이 선공/후공을 고릅니다.</p>
+            <div id="rps-timer" class="hidden mx-auto mb-3 w-14 h-14 rounded-full bg-slate-800 text-white font-mono font-bold text-2xl flex items-center justify-center shadow-md">5</div>
 
             <div class="flex justify-center items-center gap-4 mb-4">
                 <div class="flex-1 bg-blue-50 border border-blue-100 rounded-2xl py-3">
@@ -1547,7 +1548,35 @@
         }
 
         // ===== 온라인 가위바위보 =====
-        const RPS_ICON = { rock: '✊', paper: '🖐️', scissors: '✌️' };
+        const RPS_ICON = { rock: '✊', paper: '🖐️', scissors: '✌️', none: '⏰' };
+        const RPS_SECONDS = 5;
+
+        let rpsTimer = null;
+        let rpsRemaining = 0;
+        function stopRpsTimer() {
+            if (rpsTimer) { clearInterval(rpsTimer); rpsTimer = null; }
+            const el = document.getElementById('rps-timer');
+            if (el) { el.classList.add('hidden'); el.classList.remove('flex'); }
+        }
+        function renderRpsTimer() {
+            const el = document.getElementById('rps-timer');
+            if (!el) return;
+            el.classList.remove('hidden');
+            el.classList.add('flex');
+            el.innerText = rpsRemaining;
+            el.className = (rpsRemaining <= 2 ? "bg-rose-600 animate-pulse" : "bg-slate-800") +
+                " mx-auto mb-3 w-14 h-14 rounded-full text-white font-mono font-bold text-2xl flex items-center justify-center shadow-md";
+        }
+        function startRpsTimer(seconds, onExpire) {
+            stopRpsTimer();
+            rpsRemaining = seconds;
+            renderRpsTimer();
+            rpsTimer = setInterval(() => {
+                rpsRemaining -= 1;
+                renderRpsTimer();
+                if (rpsRemaining <= 0) { stopRpsTimer(); onExpire(); }
+            }, 1000);
+        }
         let rpsRound = 0;
         let myRps = null;
         let theirRps = null;
@@ -1593,6 +1622,7 @@
         }
 
         function closeRpsModal() {
+            stopRpsTimer();
             const modal = document.getElementById('online-rps-modal');
             modal.classList.add('hidden');
             modal.classList.remove('flex');
@@ -1615,14 +1645,20 @@
                 delete pendingRps[rpsRound];
                 document.getElementById('rps-their-pick').innerText = '✅';
             }
+
+            // 5초 안에 안 내면 시간 초과(패배)로 처리
+            startRpsTimer(RPS_SECONDS, () => { if (!myRps) onlineRps('none'); });
         }
 
         function onlineRps(choice) {
             if (myRps) return;
             myRps = choice;
+            stopRpsTimer();
             document.getElementById('rps-my-pick').innerText = RPS_ICON[choice];
             document.querySelectorAll('.rps-btn').forEach(b => b.disabled = true);
-            document.getElementById('rps-status').innerText = theirRps ? '결과 확인 중...' : '상대의 선택을 기다리는 중...';
+            document.getElementById('rps-status').innerText = choice === 'none'
+                ? '⏰ 시간 초과! 상대의 선택을 기다리는 중...'
+                : (theirRps ? '결과 확인 중...' : '상대의 선택을 기다리는 중...');
             sendData({ type: 'rps', round: rpsRound, choice });
             checkRpsResult();
         }
@@ -1645,6 +1681,7 @@
             const status = document.getElementById('rps-status');
 
             if (myRps === theirRps) {
+                // (둘 다 시간 초과도 비김으로 처리)
                 // 잠깐 결과를 보여준 뒤 다음 라운드로 (라운드 번호는 넘어갈 때 올림 —
                 // 그 사이 도착한 상대의 다음 선택은 pendingRps에 보관됨)
                 document.querySelectorAll('.rps-btn').forEach(b => b.disabled = true);
@@ -1659,23 +1696,28 @@
                 return;
             }
 
-            const iWin =
+            let iWin;
+            if (myRps === 'none') iWin = false;
+            else if (theirRps === 'none') iWin = true;
+            else iWin =
                 (myRps === 'rock' && theirRps === 'scissors') ||
                 (myRps === 'paper' && theirRps === 'rock') ||
                 (myRps === 'scissors' && theirRps === 'paper');
 
             document.getElementById('rps-buttons').classList.add('hidden');
             if (iWin) {
-                status.innerText = '이겼습니다! 순서를 고르세요.';
+                status.innerText = (theirRps === 'none' ? '상대가 시간을 넘겨 이겼습니다! ' : '이겼습니다! ') + `${RPS_SECONDS}초 안에 순서를 고르세요. (안 고르면 후공)`;
                 status.className = "font-bold text-emerald-600 text-sm sm:text-base min-h-[1.5rem] mb-3";
                 document.getElementById('online-order-choice').classList.remove('hidden');
+                startRpsTimer(RPS_SECONDS, () => chooseOnlineOrder(false));
             } else {
-                status.innerText = '졌습니다. 상대가 순서를 고르는 중...';
+                status.innerText = (myRps === 'none' ? '시간 초과로 졌습니다. ' : '졌습니다. ') + '상대가 순서를 고르는 중...';
                 status.className = "font-bold text-rose-600 text-sm sm:text-base min-h-[1.5rem] mb-3";
             }
         }
 
         function chooseOnlineOrder(iFirst) {
+            stopRpsTimer();
             myPlayerNum = iFirst ? 1 : 2;
             sendData({ type: 'order', winnerFirst: iFirst });
             closeRpsModal();
