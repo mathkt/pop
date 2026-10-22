@@ -865,12 +865,13 @@
         }
 
         function cleanupPeer() {
-            disconnectHandled = true; // 정리 중 발생하는 close/error 이벤트는 무시
-            if (conn) { try { conn.close(); } catch (e) {} }
-            if (peer) { try { peer.destroy(); } catch (e) {} }
+            // 먼저 참조를 비운 뒤 닫는다 — 뒤늦게 도착하는 이전 연결의 close/error 이벤트는
+            // 핸들러의 "현재 연결인지" 검사에서 걸러진다.
+            const oldConn = conn, oldPeer = peer;
             conn = null;
             peer = null;
-            disconnectHandled = false;
+            if (oldConn) { try { oldConn.close(); } catch (e) {} }
+            if (oldPeer) { try { oldPeer.destroy(); } catch (e) {} }
         }
 
         function leaveOnline() {
@@ -901,22 +902,25 @@
             roomCode = generateRoomCode();
             showOnlineWaiting('방을 만드는 중...', false);
 
-            peer = new Peer(PEER_PREFIX + roomCode);
+            const p = new Peer(PEER_PREFIX + roomCode);
+            peer = p;
 
-            peer.on('open', () => {
+            p.on('open', () => {
+                if (peer !== p) return;
                 document.getElementById('room-code-text').innerText = roomCode;
                 document.getElementById('copy-feedback').innerText = '';
                 document.getElementById('room-code-box').classList.remove('hidden');
                 setOnlineStatus('친구에게 코드(또는 링크)를 보내고 접속을 기다리세요.', false);
             });
 
-            peer.on('connection', (c) => {
-                if (conn) { try { c.close(); } catch (e) {} return; } // 이미 상대가 있으면 거절
+            p.on('connection', (c) => {
+                if (peer !== p || conn) { try { c.close(); } catch (e) {} return; } // 이전 방이거나 이미 상대가 있으면 거절
                 conn = c;
                 setupConnection();
             });
 
-            peer.on('error', (err) => {
+            p.on('error', (err) => {
+                if (peer !== p) return;
                 console.error('Peer error:', err);
                 if (err.type === 'unavailable-id' && retry < 3) {
                     createRoom(retry + 1); // 코드 충돌 시 새 코드로 재시도
@@ -938,14 +942,17 @@
             roomCode = code;
             showOnlineWaiting(`방 ${code}에 접속하는 중...`, false);
 
-            peer = new Peer();
+            const p = new Peer();
+            peer = p;
 
-            peer.on('open', () => {
-                conn = peer.connect(PEER_PREFIX + code, { reliable: true });
+            p.on('open', () => {
+                if (peer !== p) return;
+                conn = p.connect(PEER_PREFIX + code, { reliable: true });
                 setupConnection();
             });
 
-            peer.on('error', (err) => {
+            p.on('error', (err) => {
+                if (peer !== p) return;
                 console.error('Peer error:', err);
                 if (err.type === 'peer-unavailable') {
                     setOnlineStatus('해당 코드의 방을 찾을 수 없습니다. 코드를 다시 확인해 주세요.', true);
@@ -957,8 +964,10 @@
 
         function setupConnection() {
             disconnectHandled = false;
+            const c = conn; // 이 핸들러들은 이 연결(c)이 아직 현재 연결일 때만 동작
 
-            conn.on('open', () => {
+            c.on('open', () => {
+                if (conn !== c) return;
                 if (isHost) {
                     startOnlineGame();
                 } else {
@@ -966,9 +975,9 @@
                 }
             });
 
-            conn.on('data', handleRemoteData);
-            conn.on('close', onRemoteDisconnect);
-            conn.on('error', (e) => { console.error('conn error', e); onRemoteDisconnect(); });
+            c.on('data', (d) => { if (conn === c) handleRemoteData(d); });
+            c.on('close', () => { if (conn === c) onRemoteDisconnect(); });
+            c.on('error', (e) => { console.error('conn error', e); if (conn === c) onRemoteDisconnect(); });
         }
 
         function startOnlineGame() {
