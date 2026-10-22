@@ -123,35 +123,24 @@
                 <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                     <input type="text" id="custom-rows-input" value="2, 5, 6" placeholder="예: 3, 5, 7" class="flex-1 px-4 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-mono text-sm">
                     <button onclick="playButtonClick(); applyCustomRows();" class="px-5 py-2 bg-slate-700 text-white rounded-xl font-semibold hover:bg-slate-800 transition text-sm">적용</button>
+                    <button onclick="playButtonClick(); randomizeRows();" class="px-5 py-2 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition text-sm flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-dice"></i> 랜덤
+                    </button>
                 </div>
-                <p class="text-xs text-slate-400 mt-1.5">* 쉼표(,)로 구분하여 2개 이상의 줄 버블 수를 설정하세요. 온라인 대전에서는 방장의 설정이 적용됩니다.</p>
+                <p class="text-xs text-slate-400 mt-1.5">* 쉼표(,)로 구분하여 2개 이상의 줄 버블 수를 설정하세요. [랜덤]은 줄 2~5개, 각 줄 2~8개로 섞습니다. 온라인 대전에서는 방장의 설정이 적용됩니다.</p>
+                <p id="rows-feedback" class="text-xs text-indigo-600 font-semibold mt-1 h-4"></p>
             </div>
 
-            <!-- Rock-Paper-Scissors Section (For AI Mode) -->
-            <div id="rps-section" class="text-center border-t pt-6 border-slate-100">
-                <p class="font-semibold text-slate-700 mb-3 text-sm sm:text-base">가위바위보로 선공/후공 정하기</p>
-                <div class="flex justify-center gap-2 sm:gap-3 mb-4">
-                    <button onclick="playButtonClick(); playRPS('scissors');" class="px-4 py-2.5 sm:px-5 sm:py-3 bg-pink-50 hover:bg-pink-100 text-pink-600 border border-pink-200 rounded-2xl font-bold transition text-base sm:text-lg flex items-center gap-1.5 shadow-sm">
-                        ✌️ 가위
+            <!-- Order Choice Section (For AI Mode) -->
+            <div id="ai-order-section" class="text-center border-t pt-6 border-slate-100">
+                <p class="font-semibold text-slate-700 mb-3 text-sm sm:text-base">선공 / 후공 선택</p>
+                <div class="flex flex-col sm:flex-row justify-center gap-2 sm:gap-3">
+                    <button onclick="playButtonClick(); startGame(true);" class="px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg hover:bg-indigo-700 transition text-sm sm:text-base flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-play"></i> 내가 선공 (먼저 하기)
                     </button>
-                    <button onclick="playButtonClick(); playRPS('rock');" class="px-4 py-2.5 sm:px-5 sm:py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-2xl font-bold transition text-base sm:text-lg flex items-center gap-1.5 shadow-sm">
-                        ✊ 바위
+                    <button onclick="playButtonClick(); startGame(false);" class="px-6 py-3 bg-slate-600 text-white font-bold rounded-2xl shadow-lg hover:bg-slate-700 transition text-sm sm:text-base flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-robot"></i> 내가 후공 (AI 먼저)
                     </button>
-                    <button onclick="playButtonClick(); playRPS('paper');" class="px-4 py-2.5 sm:px-5 sm:py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-2xl font-bold transition text-base sm:text-lg flex items-center gap-1.5 shadow-sm">
-                        🖐️ 보
-                    </button>
-                </div>
-
-                <div id="rps-result" class="hidden p-4 rounded-2xl bg-amber-50 border border-amber-200 text-center font-bold text-xs sm:text-sm">
-                    <p id="rps-result-text" class="text-slate-800 mb-2"></p>
-                    <div id="order-choice" class="hidden flex flex-wrap justify-center gap-2 sm:gap-3 mt-3">
-                        <button onclick="playButtonClick(); startGame(true);" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition">
-                            내가 선공 (먼저 하기)
-                        </button>
-                        <button onclick="playButtonClick(); startGame(false);" class="px-4 py-2 bg-slate-600 text-white font-bold rounded-xl hover:bg-slate-700 transition">
-                            내가 후공 (나중에 하기)
-                        </button>
-                    </div>
                 </div>
             </div>
 
@@ -275,7 +264,7 @@
                         <i class="fa-solid fa-list-check"></i> 기본 게임 규칙
                     </h4>
                     <ol class="list-decimal list-inside space-y-1.5 text-indigo-950 font-medium">
-                        <li>AI 대전에서는 가위바위보를 진행하며, 2인 대전은 바로 게임을 진행합니다.</li>
+                        <li>AI 대전은 선공/후공을 직접 고르고, 2인 대전은 바로 시작하며, 온라인 대전은 가위바위보로 순서를 정합니다.</li>
                         <li>자신의 차례가 되면 팝잇의 **한 줄**을 선택하여 버블을 **1개 이상** 누를 수 있습니다.</li>
                         <li>선택한 한 줄의 버블을 모두 누를 수도 있지만, **서로 다른 줄의 버블을 동시에 누를 수는 없습니다.**</li>
                         <li>**마지막 버블을 누르는 사람이 최종 승리**합니다.</li>
@@ -287,7 +276,7 @@
                     </h4>
                     <ol class="list-decimal list-inside space-y-1.5 text-emerald-950 font-medium">
                         <li>한 사람이 [방 만들기]를 눌러 방 코드를 받고, 친구에게 코드나 링크를 보냅니다.</li>
-                        <li>친구가 코드를 입력해 [참가]하면 자동으로 게임이 시작됩니다. 선공은 무작위로 정해집니다.</li>
+                        <li>친구가 코드를 입력해 [참가]하면 가위바위보 화면이 뜨고, 이긴 사람이 선공/후공을 고릅니다. (비기면 다시)</li>
                         <li>팝잇 줄 설정은 방장의 설정을 따릅니다.</li>
                         <li>상대가 고르는 중인 버블은 주황 점선으로 실시간 표시됩니다.</li>
                         <li>게임이 끝나면 방장이 [다시 대결]을 눌러 같은 상대와 바로 다시 할 수 있습니다.</li>
@@ -298,6 +287,49 @@
             <button onclick="closeRulesModal()" class="w-full mt-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition text-sm sm:text-base">
                 확인 및 닫기
             </button>
+        </div>
+    </div>
+
+    <!-- Online RPS Modal -->
+    <div id="online-rps-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 text-center shadow-2xl">
+            <h3 class="text-xl sm:text-2xl font-jua text-slate-800 mb-1">가위바위보로 순서 정하기</h3>
+            <p class="text-xs sm:text-sm text-slate-500 mb-4">이긴 사람이 선공/후공을 고릅니다.</p>
+
+            <div class="flex justify-center items-center gap-4 mb-4">
+                <div class="flex-1 bg-blue-50 border border-blue-100 rounded-2xl py-3">
+                    <p class="text-xs text-blue-700 font-semibold mb-1">나</p>
+                    <p id="rps-my-pick" class="text-3xl">❔</p>
+                </div>
+                <span class="font-jua text-slate-300">VS</span>
+                <div class="flex-1 bg-purple-50 border border-purple-100 rounded-2xl py-3">
+                    <p class="text-xs text-purple-700 font-semibold mb-1">상대</p>
+                    <p id="rps-their-pick" class="text-3xl">❔</p>
+                </div>
+            </div>
+
+            <div id="rps-buttons" class="flex justify-center gap-2 sm:gap-3 mb-4">
+                <button onclick="playButtonClick(); onlineRps('scissors');" class="rps-btn px-4 py-2.5 sm:px-5 sm:py-3 bg-pink-50 hover:bg-pink-100 text-pink-600 border border-pink-200 rounded-2xl font-bold transition text-base sm:text-lg shadow-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                    ✌️ 가위
+                </button>
+                <button onclick="playButtonClick(); onlineRps('rock');" class="rps-btn px-4 py-2.5 sm:px-5 sm:py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-2xl font-bold transition text-base sm:text-lg shadow-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                    ✊ 바위
+                </button>
+                <button onclick="playButtonClick(); onlineRps('paper');" class="rps-btn px-4 py-2.5 sm:px-5 sm:py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-2xl font-bold transition text-base sm:text-lg shadow-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                    🖐️ 보
+                </button>
+            </div>
+
+            <p id="rps-status" class="font-bold text-slate-700 text-sm sm:text-base min-h-[1.5rem] mb-3">가위·바위·보 중 하나를 고르세요.</p>
+
+            <div id="online-order-choice" class="hidden flex flex-col sm:flex-row justify-center gap-2 sm:gap-3">
+                <button onclick="playButtonClick(); chooseOnlineOrder(true);" class="px-5 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition text-sm sm:text-base">
+                    내가 선공 (먼저 하기)
+                </button>
+                <button onclick="playButtonClick(); chooseOnlineOrder(false);" class="px-5 py-3 bg-slate-600 text-white font-bold rounded-xl hover:bg-slate-700 transition text-sm sm:text-base">
+                    내가 후공 (나중에 하기)
+                </button>
+            </div>
         </div>
     </div>
 
@@ -444,7 +476,7 @@
             const aiBtn = document.getElementById('mode-ai');
             const p2Btn = document.getElementById('mode-2p');
             const onlineBtn = document.getElementById('mode-online');
-            const rpsSection = document.getElementById('rps-section');
+            const rpsSection = document.getElementById('ai-order-section');
             const directStartSection = document.getElementById('direct-start-section');
             const onlineSection = document.getElementById('online-section');
             
@@ -471,36 +503,18 @@
                 return;
             }
             initialRowCounts = parsed;
-            alert(`팝잇 설정 변경: [${initialRowCounts.join(', ')}]`);
+            document.getElementById('custom-rows-input').value = parsed.join(', ');
+            document.getElementById('rows-feedback').innerText = `적용됨: [${parsed.join(', ')}]`;
         }
 
-        function playRPS(userChoice) {
-            const choices = ['rock', 'paper', 'scissors'];
-            const aiChoice = choices[Math.floor(Math.random() * 3)];
-            const rpsResult = document.getElementById('rps-result');
-            const rpsResultText = document.getElementById('rps-result-text');
-            const orderChoice = document.getElementById('order-choice');
-            const choiceNames = { rock: '✊ 바위', paper: '🖐️ 보', scissors: '✌️ 가위' };
-
-            if (!rpsResult || !rpsResultText || !orderChoice) return;
-
-            rpsResult.classList.remove('hidden');
-
-            if (userChoice === aiChoice) {
-                rpsResultText.innerHTML = `나: ${choiceNames[userChoice]} vs 상대: ${choiceNames[aiChoice]} <br><span class="text-amber-600">비겼습니다! 다시 선택하세요.</span>`;
-                orderChoice.classList.add('hidden');
-            } else if (
-                (userChoice === 'rock' && aiChoice === 'scissors') ||
-                (userChoice === 'paper' && aiChoice === 'rock') ||
-                (userChoice === 'scissors' && aiChoice === 'paper')
-            ) {
-                rpsResultText.innerHTML = `나: ${choiceNames[userChoice]} vs 상대: ${choiceNames[aiChoice]} <br><span class="text-emerald-600">이겼습니다! 순서를 선택하세요.</span>`;
-                orderChoice.classList.remove('hidden');
-            } else {
-                rpsResultText.innerHTML = `나: ${choiceNames[userChoice]} vs 상대: ${choiceNames[aiChoice]} <br><span class="text-rose-600">졌습니다. AI가 선공입니다!</span>`;
-                orderChoice.classList.add('hidden');
-                setTimeout(() => startGame(false), 1200);
-            }
+        // 줄 2~5개, 각 줄 버블 2~8개로 무작위 설정
+        function randomizeRows() {
+            const rowCount = 2 + Math.floor(Math.random() * 4);
+            const rows = [];
+            for (let i = 0; i < rowCount; i++) rows.push(2 + Math.floor(Math.random() * 7));
+            initialRowCounts = rows;
+            document.getElementById('custom-rows-input').value = rows.join(', ');
+            document.getElementById('rows-feedback').innerText = `랜덤 적용됨: [${rows.join(', ')}]`;
         }
 
         function startGame(isFirst) {
@@ -806,6 +820,7 @@
 
         function resetToSetup() {
             hideGameOverModal();
+            closeRpsModal();
             document.getElementById('game-panel').classList.add('hidden');
             document.getElementById('setup-panel').classList.remove('hidden');
             selectedRowIndex = null;
@@ -980,19 +995,141 @@
             c.on('error', (e) => { console.error('conn error', e); if (conn === c) onRemoteDisconnect(); });
         }
 
+        // 방장: 줄 설정을 보내고 가위바위보 단계로 진입
         function startOnlineGame() {
-            const hostFirst = Math.random() < 0.5;
-            myPlayerNum = hostFirst ? 1 : 2;
-            sendData({ type: 'init', rows: initialRowCounts, hostFirst });
-            beginOnlineMatch(initialRowCounts);
+            sendData({ type: 'init', rows: initialRowCounts });
+            beginOnlineRps(initialRowCounts);
         }
 
-        function beginOnlineMatch(rows) {
+        // ===== 온라인 가위바위보 =====
+        const RPS_ICON = { rock: '✊', paper: '🖐️', scissors: '✌️' };
+        let rpsRound = 0;
+        let myRps = null;
+        let theirRps = null;
+        const pendingRps = {}; // 내가 아직 다음 라운드로 넘어가기 전에 도착한 상대 선택
+
+        function beginOnlineRps(rows) {
             hideGameOverModal();
             initialRowCounts = [...rows];
+            currentRows = [...rows];
+            gameActive = false;
+            myPlayerNum = 0; // 아직 순서 미정 → 보드 잠금
+            selectedRowIndex = null;
+            tempSelectedIndices = [];
+            remoteSelectedRow = null;
+            remoteSelectedIndices = [];
+
             document.getElementById('online-waiting').classList.add('hidden');
             document.getElementById('online-lobby').classList.remove('hidden');
-            startGame(true); // 플레이어 1(= 선공)부터 시작, 내가 누구인지는 myPlayerNum이 결정
+            document.getElementById('setup-panel').classList.add('hidden');
+            document.getElementById('game-panel').classList.remove('hidden');
+
+            document.getElementById('player1-badge').innerHTML = `<i class="fa-solid fa-user"></i> 나`;
+            document.getElementById('player2-badge').innerHTML = `<i class="fa-solid fa-user-astronaut"></i> 상대`;
+            const ti = document.getElementById('turn-indicator');
+            ti.innerText = '가위바위보 중...';
+            ti.className = "px-5 py-2 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-white font-jua text-lg sm:text-xl shadow-md text-center w-full sm:w-auto";
+            document.getElementById('selection-info').innerText = "가위바위보로 순서를 정하는 중입니다.";
+            document.getElementById('confirm-btn').disabled = true;
+            document.getElementById('cancel-btn').disabled = true;
+            renderBoard();
+
+            rpsRound = 1;
+            for (const k in pendingRps) delete pendingRps[k];
+            resetRpsRound('가위·바위·보 중 하나를 고르세요.');
+            const modal = document.getElementById('online-rps-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeRpsModal() {
+            const modal = document.getElementById('online-rps-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function resetRpsRound(statusText) {
+            myRps = null;
+            theirRps = null;
+            document.getElementById('rps-my-pick').innerText = '❔';
+            document.getElementById('rps-their-pick').innerText = '❔';
+            document.getElementById('rps-status').innerText = statusText;
+            document.getElementById('rps-status').className = "font-bold text-slate-700 text-sm sm:text-base min-h-[1.5rem] mb-3";
+            document.getElementById('online-order-choice').classList.add('hidden');
+            document.getElementById('rps-buttons').classList.remove('hidden');
+            document.querySelectorAll('.rps-btn').forEach(b => b.disabled = false);
+
+            // 상대가 이미 이번 라운드 선택을 보냈다면 반영
+            if (pendingRps[rpsRound]) {
+                theirRps = pendingRps[rpsRound];
+                delete pendingRps[rpsRound];
+                document.getElementById('rps-their-pick').innerText = '✅';
+            }
+        }
+
+        function onlineRps(choice) {
+            if (myRps) return;
+            myRps = choice;
+            document.getElementById('rps-my-pick').innerText = RPS_ICON[choice];
+            document.querySelectorAll('.rps-btn').forEach(b => b.disabled = true);
+            document.getElementById('rps-status').innerText = theirRps ? '결과 확인 중...' : '상대의 선택을 기다리는 중...';
+            sendData({ type: 'rps', round: rpsRound, choice });
+            checkRpsResult();
+        }
+
+        function receiveRps(round, choice) {
+            if (!RPS_ICON[choice]) return;
+            if (round !== rpsRound) {
+                if (round > rpsRound) pendingRps[round] = choice;
+                return;
+            }
+            theirRps = choice;
+            document.getElementById('rps-their-pick').innerText = myRps ? RPS_ICON[choice] : '✅';
+            if (!myRps) document.getElementById('rps-status').innerText = '상대가 골랐습니다! 당신 차례예요.';
+            checkRpsResult();
+        }
+
+        function checkRpsResult() {
+            if (!myRps || !theirRps) return;
+            document.getElementById('rps-their-pick').innerText = RPS_ICON[theirRps];
+            const status = document.getElementById('rps-status');
+
+            if (myRps === theirRps) {
+                // 잠깐 결과를 보여준 뒤 다음 라운드로 (라운드 번호는 넘어갈 때 올림 —
+                // 그 사이 도착한 상대의 다음 선택은 pendingRps에 보관됨)
+                document.querySelectorAll('.rps-btn').forEach(b => b.disabled = true);
+                status.innerText = '비겼습니다! 다시 골라요.';
+                status.className = "font-bold text-amber-600 text-sm sm:text-base min-h-[1.5rem] mb-3";
+                const thisRound = rpsRound;
+                setTimeout(() => {
+                    if (rpsRound !== thisRound || !isOnline()) return;
+                    rpsRound += 1;
+                    resetRpsRound('비겼습니다! 다시 골라요.');
+                }, 900);
+                return;
+            }
+
+            const iWin =
+                (myRps === 'rock' && theirRps === 'scissors') ||
+                (myRps === 'paper' && theirRps === 'rock') ||
+                (myRps === 'scissors' && theirRps === 'paper');
+
+            document.getElementById('rps-buttons').classList.add('hidden');
+            if (iWin) {
+                status.innerText = '이겼습니다! 순서를 고르세요.';
+                status.className = "font-bold text-emerald-600 text-sm sm:text-base min-h-[1.5rem] mb-3";
+                document.getElementById('online-order-choice').classList.remove('hidden');
+            } else {
+                status.innerText = '졌습니다. 상대가 순서를 고르는 중...';
+                status.className = "font-bold text-rose-600 text-sm sm:text-base min-h-[1.5rem] mb-3";
+            }
+        }
+
+        function chooseOnlineOrder(iFirst) {
+            myPlayerNum = iFirst ? 1 : 2;
+            sendData({ type: 'order', winnerFirst: iFirst });
+            closeRpsModal();
+            startGame(true); // 플레이어 1(= 선공)부터 시작
         }
 
         function requestRematch() {
@@ -1006,8 +1143,17 @@
             switch (data.type) {
                 case 'init': {
                     if (!Array.isArray(data.rows) || data.rows.length < 2) return;
-                    myPlayerNum = data.hostFirst ? 2 : 1;
-                    beginOnlineMatch(data.rows);
+                    beginOnlineRps(data.rows);
+                    break;
+                }
+                case 'rps': {
+                    receiveRps(data.round, data.choice);
+                    break;
+                }
+                case 'order': {
+                    myPlayerNum = data.winnerFirst ? 2 : 1;
+                    closeRpsModal();
+                    startGame(true);
                     break;
                 }
                 case 'preview': {
@@ -1048,6 +1194,7 @@
             if (disconnectHandled) return;
             disconnectHandled = true;
 
+            closeRpsModal();
             const wasInGame = gameActive || !document.getElementById('game-panel').classList.contains('hidden');
             gameActive = false;
             cleanupPeer();
