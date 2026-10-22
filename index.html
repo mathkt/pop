@@ -660,6 +660,7 @@
         function switchTurn() {
             currentPlayer = currentPlayer === 1 ? 2 : 1;
             updateTurnUI();
+            renderBoard(); // 차례가 바뀐 상태로 보드 잠금/해제를 다시 반영
 
             if (gameMode === 'ai' && currentPlayer === 2) triggerAiTurn();
         }
