@@ -240,9 +240,10 @@
                             <p class="text-[11px] text-slate-400 mt-1">상대가 폰 카메라로 찍으면 바로 입장</p>
                         </div>
                     </div>
-                    <div class="flex justify-center items-center gap-2 text-slate-500 text-xs mb-4" id="online-spinner">
-                        <i class="fa-solid fa-circle-notch fa-spin"></i> 연결 대기 중
+                    <div class="flex justify-center items-center gap-2 text-slate-500 text-xs mb-1" id="online-spinner">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> 상대 접속 대기 중
                     </div>
+                    <p id="server-status" class="text-[11px] text-slate-400 mb-4">서버 연결 확인 중...</p>
                     <button onclick="playButtonClick(); leaveOnline();" class="px-5 py-2 bg-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-300 transition text-xs sm:text-sm">
                         취소
                     </button>
@@ -319,6 +320,7 @@
         </div>
 
     </main>
+    <p class="text-center text-[11px] text-slate-400 mt-2">v7.1 · 온라인 대전: Firebase</p>
 
     <!-- Rules Modal -->
     <div id="rules-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
@@ -1408,6 +1410,13 @@
                 try {
                     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
                     db = firebase.database();
+                    db.ref('.info/connected').on('value', (snap) => {
+                        const el = document.getElementById('server-status');
+                        if (!el) return;
+                        const ok = snap.val() === true;
+                        el.innerText = ok ? '✅ 서버 연결됨 (v7.1)' : '⚠️ 서버에 연결되지 않음 — 인터넷/차단 여부를 확인해 주세요 (v7.1)';
+                        el.className = ok ? 'text-[11px] text-emerald-600 font-semibold mb-4' : 'text-[11px] text-rose-600 font-semibold mb-4';
+                    });
                 } catch (e) {
                     console.error(e);
                     alert('온라인 대전 서버에 연결하지 못했습니다.');
