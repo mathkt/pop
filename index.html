@@ -320,7 +320,7 @@
         </div>
 
     </main>
-    <p class="text-center text-[11px] text-slate-400 mt-2">v7.1 · 온라인 대전: Firebase</p>
+    <p class="text-center text-[11px] text-slate-400 mt-2">v7.2 · 온라인 대전: Firebase</p>
 
     <!-- Rules Modal -->
     <div id="rules-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
@@ -1414,7 +1414,7 @@
                         const el = document.getElementById('server-status');
                         if (!el) return;
                         const ok = snap.val() === true;
-                        el.innerText = ok ? '✅ 서버 연결됨 (v7.1)' : '⚠️ 서버에 연결되지 않음 — 인터넷/차단 여부를 확인해 주세요 (v7.1)';
+                        el.innerText = ok ? '✅ 서버 연결됨 (v7.2)' : '⚠️ 서버에 연결되지 않음 — 인터넷/차단 여부를 확인해 주세요 (v7.2)';
                         el.className = ok ? 'text-[11px] text-emerald-600 font-semibold mb-4' : 'text-[11px] text-rose-600 font-semibold mb-4';
                     });
                 } catch (e) {
@@ -1515,9 +1515,9 @@
         }
 
         // 내 수신함 구독: 도착한 메시지를 처리하고 지운다
-        function listenInbox() {
+        function listenInbox(clearFirst = true) {
             const inbox = roomRef.child('msg/' + myRole);
-            inbox.remove().catch(() => {}); // 이전 잔여 메시지 제거
+            if (clearFirst) inbox.remove().catch(() => {}); // 이전 잔여 메시지 제거
             listen(inbox, 'child_added', (snap) => {
                 const data = snap.val();
                 roomUpdate({ ['msg/' + myRole + '/' + snap.key]: null });
@@ -1633,6 +1633,10 @@
                 }
                 roomRef = ref;
                 theirName = String(room.host.name || '상대').slice(0, 10) || '상대';
+                // 먼저 수신함을 비우고 듣기 시작한 뒤에 입장을 알린다
+                // (느린 기기에서 방장의 시작 메시지가 먼저 도착해 지워지는 문제 방지)
+                await ref.child('msg/guest').remove().catch(() => {});
+                listenInbox(false);
                 await ref.update({
                     guest: { name: displayName(), online: true },
                     updatedAt: firebase.database.ServerValue.TIMESTAMP
@@ -1645,7 +1649,6 @@
             }
 
             connected = true;
-            listenInbox();
             watchOpponent('host');
             setOnlineStatus('연결되었습니다! 곧 게임이 시작됩니다...', false);
         }
